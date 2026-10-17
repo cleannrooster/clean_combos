@@ -1,0 +1,47 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[dependencies.exiled_combat]]
+    modId = "neoforge"
+    type = "required"
+    versionRange = "[21.1,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.exiled_combat]]
+    modId = "minecraft"
+    type = "required"
+    versionRange = "[1.21.1,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.exiled_combat]]
+    modId = "architectury"
+    type = "required"
+    versionRange = "*"
+    ordering = "AFTER"
+    side = "BOTH"
+
+[[dependencies.exiled_combat]]
+    modId = "playeranimator"
+    type = "required"
+    versionRange = "*"
+    ordering = "AFTER"
+    side = "BOTH"
+
+[[dependencies.exiled_combat]]
+    modId = "bettercombat"
+    type = "incompatible"
+    reason = "Exiled Combat replaces Better Combat's attack system; the two cannot run together."
+    versionRange = "*"
+    side = "BOTH"
+
+[[mods]]
+    modId = "exiled_combat"
+    version = "${version}"
+    displayName = "Exiled Combat"
+    description = "Click-to-attack, committed two-swing melee combat"
+
+[[mixins]]
+    config = "exiled_combat.mixins.json"
