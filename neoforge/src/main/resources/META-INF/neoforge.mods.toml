@@ -2,46 +2,46 @@ modLoader = "javafml"
 loaderVersion = "[4,)"
 license = "MIT"
 
-[[dependencies.exiled_combat]]
+[[dependencies.clean_combos]]
     modId = "neoforge"
     type = "required"
     versionRange = "[21.1,)"
     ordering = "NONE"
     side = "BOTH"
 
-[[dependencies.exiled_combat]]
+[[dependencies.clean_combos]]
     modId = "minecraft"
     type = "required"
     versionRange = "[1.21.1,)"
     ordering = "NONE"
     side = "BOTH"
 
-[[dependencies.exiled_combat]]
+[[dependencies.clean_combos]]
     modId = "architectury"
     type = "required"
     versionRange = "*"
     ordering = "AFTER"
     side = "BOTH"
 
-[[dependencies.exiled_combat]]
+[[dependencies.clean_combos]]
     modId = "playeranimator"
     type = "required"
     versionRange = "*"
     ordering = "AFTER"
     side = "BOTH"
 
-[[dependencies.exiled_combat]]
+[[dependencies.clean_combos]]
     modId = "bettercombat"
     type = "incompatible"
-    reason = "Exiled Combat replaces Better Combat's attack system; the two cannot run together."
+    reason = "Clean Combos replaces Better Combat's attack system; the two cannot run together."
     versionRange = "*"
     side = "BOTH"
 
 [[mods]]
-    modId = "exiled_combat"
+    modId = "clean_combos"
     version = "${version}"
-    displayName = "Exiled Combat"
+    displayName = "Clean Combos"
     description = "Click-to-attack, committed two-swing melee combat"
 
 [[mixins]]
-    config = "exiled_combat.mixins.json"
+    config = "clean_combos.mixins.json"

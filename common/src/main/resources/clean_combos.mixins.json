@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"package": "com.cleannrooster.clean_combos.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"LivingEntityAccessor",
+		"PlayerEntityMixin"
+	],
+	"client": [
+		"client.EntityClientMixin",
+		"client.KeyboardInputMixin",
+		"client.LivingEntityClientMixin",
+		"client.LivingEntityRendererMixin",
+		"client.MinecraftClientMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

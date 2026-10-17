@@ -1,4 +1,4 @@
-# Exiled Combat — scope: "basic, but prestige"
+# Clean Combos — scope: "basic, but prestige"
 
 Decided 2026-10-17 after playing 0.1.0 in Guild Adventures.
 
@@ -14,11 +14,13 @@ points.
 
 | Moveset | Weapons | Detection (automatic) |
 |---|---|---|
-| **Chop** | axes, maces | `AxeItem`, `MaceItem`, `#minecraft:axes`, `c:tools/axes`-style tags |
+| **Chop** | axes, modded maces | `AxeItem`, `MaceItem` subclasses, `#minecraft:axes`, `c:tools/axes`-style tags, id containing `mace` |
 | **Thrust** | spears, tridents | `TridentItem`, spear-style tags, id containing `spear` / `lance` / `pike` / `javelin` |
 | **Swing** | every other melee item | default |
 | **Fists** | empty hand | unchanged: alternating hands |
 
+- **The vanilla mace is left to vanilla** (its own attack and smash) by default. Override with
+  `"minecraft:mace": "chop"`; any item can be opted out with `"<id>": "vanilla"`.
 - A moveset never changes with grip — only stats and the support-arm pose do.
 - A short config list (`id or #tag → moveset`) fixes the rare misdetected modded weapon. It replaces the
   weapon-profile datapack system, which is removed.
@@ -53,28 +55,28 @@ points.
 ## Prestige features (in scope)
 
 1. **Hitstop** — a brief freeze on attacker and victim when a swing connects.
-2. **Honest tooltips** — moveset, swing time and the current grip's modifiers, computed from the same numbers
-   the game uses.
+2. **Tooltips** — one line naming the weapon's attack (Swing / Chop / Thrust).
 3. **Combo cue** — a subtle pulse on the target outline while a chained second swing is available.
 4. **Jump attacks** — as above.
 
 ## Assets
 
 - Body clips: swing (`swing_left_to_right`), chop (`slam_left_to_right`), lunge (`lunge_left_to_right`) exist.
-- **Thrust clip** — user will author `thrust_left_to_right`.
+- Thrust clip: `thrust_left_to_right` (authored 2026-10-17).
 
 ## Kept from 0.1.0
 
 Click-to-attack with screen-space target pick, PoE2 snap (distance-scaled), one-two combo + chain window,
 breakable tracking, pitched arcs, narrow strikes that ignore i-frames, shared swing geometry driving pose /
 weapon / trail, authored body clips time-warped onto phases, first-person model, attack movement speed,
-`config/exiled_combat.json` synced from the server.
+`config/clean_combos.json` synced from the server.
 
 ## Settled
 
 - **Chop and auto two-hand:** chop stays one-handed with an empty off hand (decided 2026-10-17).
-- **Reach:** the wielder's entity-interaction-range attribute, plus a per-moveset bonus (thrust +0.75, fists
-  −0.5); snaps reach 7 blocks further.
+- **Reach:** the wielder's entity-interaction-range attribute (fists −0.5); snaps reach 7 blocks further.
+  Holding a spear (any thrust weapon) adds +1 to the attribute itself (`spearReachBonus`), so vanilla
+  interaction gets it too.
 - **Non-weapons:** anything that adds no attack damage (blocks, food, an empty hand) punches as fists.
 
 ## Build order (proposed)
@@ -82,6 +84,6 @@ weapon / trail, authored body clips time-warped onto phases, first-person model,
 1. ~~Moveset detection + removal of the datapack profiles; timing from attack speed; grip modifiers.~~ Done.
 2. ~~Jump attacks (downward chop / thrust).~~ Done: `Moveset.AERIAL` shape, slam clip, `airborne` in both packets.
 3. ~~Hitstop.~~ Done: session clock pauses on a hit (server + own-client prediction, `HitstopS2C` for others), chain window extended, victim shake; `hitstopTicks` 3 (+1 chop/jump).
-4. ~~Tooltips.~~ Done: moveset, per-grip first→second swing times and damage change (current grip marked), reach — from the planner's own functions; translatable.
+4. ~~Tooltips.~~ Done, then trimmed to a single translatable line naming the moveset.
 5. ~~Combo cue.~~ Done: hovered target's outline pulses white↔gold while the chain window is open (`Entity.getTeamColorValue` client mixin).
-6. Thrust clip hook-up once authored.
+6. ~~Thrust clip hook-up once authored.~~ Done: `thrust_left_to_right` (wound up 0.375 s, extension at 0.75 s) drives thrust body/head/legs and the free arm.

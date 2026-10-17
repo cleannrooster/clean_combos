@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "id": "exiled_combat",
+  "id": "clean_combos",
   "version": "${version}",
-  "name": "Exiled Combat",
+  "name": "Clean Combos",
   "description": "Click-to-attack, committed two-swing melee combat",
   "authors": ["cleannrooster"],
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.cleannrooster.exiled_combat.fabric.ExiledCombatFabric"],
-    "client": ["com.cleannrooster.exiled_combat.fabric.ExiledCombatClientFabric"]
+    "main": ["com.cleannrooster.clean_combos.fabric.CleanCombosFabric"],
+    "client": ["com.cleannrooster.clean_combos.fabric.CleanCombosClientFabric"]
   },
-  "mixins": ["exiled_combat.mixins.json"],
+  "mixins": ["clean_combos.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.0",
     "minecraft": "~1.21.1",
