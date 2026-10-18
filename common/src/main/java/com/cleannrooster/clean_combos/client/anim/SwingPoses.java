@@ -47,11 +47,6 @@ public final class SwingPoses {
     private static final Vector3f ITEM_EDGE = new Vector3f(-1.0f, 1.0f, 0.0f).normalize();
 
     /**
-     * Where the hand closes on a handheld sprite, in item-model space (0..1, y up): the centre of the
-     * handle pixels (vanilla swords and axes both grip at pixel (3, 12) from the top-left), mid-depth.
-     */
-    private static final Vector3f ITEM_GRIP = new Vector3f(3.5f / 16.0f, 3.5f / 16.0f, 0.5f);
-    /**
      * How far the arm leads the blade along the direction of travel. A straight arm-and-blade line looks
      * like the weapon is lying along the forearm; with the wrist cocked the hand leads the cut, the blade
      * trails it at an angle, and the fist visibly closes on the hilt. The blade itself stays on the swing
@@ -63,7 +58,7 @@ public final class SwingPoses {
      * A held item's third-person display, as far as posing needs it.
      *
      * @param rotation the display transform's rotation
-     * @param grip     where the sprite's hilt lands in the item-bone frame under vanilla's own transform —
+     * @param grip     where the hand closes on the item, in the item-bone frame under the model's own display —
      *                 the point the item bone must rotate about so the hand stays on the hilt
      */
     public record ItemDisplay(Matrix3f rotation, Vector3f grip) {
@@ -156,8 +151,14 @@ public final class SwingPoses {
             }
             rotation.setColumn(i, column.normalize());
         }
-        // ItemRenderer centres the model on the origin after the display transform.
-        Vector3f grip = transform.transformPosition(new Vector3f(ITEM_GRIP).sub(0.5f, 0.5f, 0.5f));
+        // The hand sits at the bone origin, and the model's display puts its handle there — wherever the
+        // item's author chose, at any size or offset. So the grip is the point on the displayed blade line
+        // (through the model's centre, which ItemRenderer shifts onto the display origin) closest to the hand.
+        // A fixed sprite pixel only fits vanilla-sized handheld sprites; modded models with their own scale or
+        // offset then pivoted off the handle and slid along it.
+        Vector3f centre = transform.transformPosition(new Vector3f());
+        Vector3f blade = rotation.transform(new Vector3f(ITEM_BLADE));
+        Vector3f grip = new Vector3f(blade).mul(-centre.dot(blade)).add(centre);
         return new ItemDisplay(rotation, grip);
     }
 

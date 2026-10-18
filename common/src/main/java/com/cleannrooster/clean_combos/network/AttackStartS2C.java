@@ -12,7 +12,7 @@ import net.minecraft.util.Identifier;
  * client can't reproduce another player's attack-speed attribute.
  */
 public record AttackStartS2C(int attackerId, int targetId, ComboSlot slot, float snapDistance, float startYaw,
-                             float startPitch, boolean airborne,
+                             float startPitch, boolean airborne, boolean sprinting,
                              int windupTicks, int lockTicks, int recoveryTicks) implements CustomPayload {
 
     public static final Id<AttackStartS2C> ID = new Id<>(Identifier.of(CleanCombos.MOD_ID, "attack_start_remote"));
@@ -25,13 +25,14 @@ public record AttackStartS2C(int attackerId, int targetId, ComboSlot slot, float
             buf.writeFloat(value.startYaw);
             buf.writeFloat(value.startPitch);
             buf.writeBoolean(value.airborne);
+            buf.writeBoolean(value.sprinting);
             buf.writeVarInt(value.windupTicks);
             buf.writeVarInt(value.lockTicks);
             buf.writeVarInt(value.recoveryTicks);
         },
         buf -> new AttackStartS2C(buf.readVarInt(), buf.readVarInt(), buf.readEnumConstant(ComboSlot.class),
-            buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
-            buf.readVarInt()));
+            buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(),
+            buf.readVarInt(), buf.readVarInt()));
 
     @Override
     public Id<? extends CustomPayload> getId() {

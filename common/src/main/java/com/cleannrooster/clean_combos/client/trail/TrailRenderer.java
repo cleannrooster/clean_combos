@@ -36,6 +36,8 @@ final class TrailRenderer {
     private static final int THRUST_SEGMENTS = 8;
 
     private static final float SWEEP_INNER_FRACTION = 0.14f;
+    /** Swings are narrow, so their band hugs the outer half of the reach instead of most of it. */
+    private static final float SWING_INNER_FRACTION = 0.5f;
     private static final float SWEEP_THICKNESS = 0.08f;
     private static final float THRUST_THICKNESS = 0.06f;
     private static final float SWEEP_ALPHA = 1.0f;
@@ -69,14 +71,13 @@ final class TrailRenderer {
     }
 
     /** The visible part of a sweep: progress range plus the crescent outline over it. */
-    private record Sweep(PoseFamily family, SwingStep step, SwingGeometry.Frame frame, float tail, float lead,
-                         double reach, float inner) {
+    private record Sweep(BladePath path, float tail, float lead, double reach, float inner) {
 
         /** World position at row fraction {@code rf} (0 tail, 1 lead) and band fraction {@code b}. */
         Vec3d point(float rf, float b) {
             float s = MathHelper.lerp(rf, tail, lead);
             float t = MathHelper.lerp(b, innerAt(rf), 1.0f);
-            return SwingGeometry.surfacePoint(family, step, frame, s, t, reach);
+            return path.point(s, t, reach);
         }
 
         /** Crescent envelope: full band at the leading row, thinning toward the tail. */
@@ -103,11 +104,12 @@ final class TrailRenderer {
         if (lead <= 1.0e-4f) {
             return;
         }
-        SwingGeometry.Frame frame = effect.frame(tickDelta);
         double reach = swing.profile().range() * effect.visualScale();
+        BladePath path = BladePath.of(effect, tickDelta, reach);
         Ribbon ribbon = sweeps
-            ? buildSweep(effect, pass, family, swing.step(), frame, lead, reach)
-            : buildThrust(effect, pass, family, swing, frame, lead, reach);
+            ? buildSweep(effect, pass, path, lead, reach,
+                family == PoseFamily.HORIZONTAL ? SWING_INNER_FRACTION : SWEEP_INNER_FRACTION)
+            : buildThrust(effect, pass, path, swing, lead, reach);
         Sprite sprite = TrailSprite.sprite();
         if (ribbon == null || sprite == null) {
             return;
@@ -116,7 +118,7 @@ final class TrailRenderer {
         RenderLayer layer = TrailStyle.TRAIL_GLOW
             ? RenderLayer.getEntityTranslucentEmissive(TrailSprite.ATLAS)
             : RenderLayer.getEntityTranslucent(TrailSprite.ATLAS);
-        int light = TrailStyle.TRAIL_GLOW ? FULL_BRIGHT : sceneLight(frame.origin());
+        int light = TrailStyle.TRAIL_GLOW ? FULL_BRIGHT : sceneLight(path.origin());
         int rgb = passColor(pass, effect.palette());
         Shade shade = new Shade((rgb >> 16 & 0xFF) / 255.0f, (rgb >> 8 & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f,
             alpha, sprite, light);
@@ -125,7 +127,7 @@ final class TrailRenderer {
 
         // Two parallel sheets read as a slab; each layer sits a little further out than the last, so the
         // edge is the surface nearest the viewer on either side.
-        Vec3d normal = SwingGeometry.planeNormal(family, swing.step(), frame);
+        Vec3d normal = path.normal(lead);
         float thickness = Math.min(sweeps ? SWEEP_THICKNESS : THRUST_THICKNESS, (float) reach / 6.0f);
         float offset = thickness > 0.001f ? thickness * passDepth(pass) : FLAT_SEPARATION * pass.ordinal();
         emit(consumer, entry, offsetGrid(ribbon, normal, offset), shade, normal);
@@ -167,13 +169,13 @@ final class TrailRenderer {
         return LightmapTextureManager.pack(block, LightmapTextureManager.getSkyLightCoordinates(packed));
     }
 
-    private static @Nullable Ribbon buildSweep(TrailEffect effect, Pass pass, PoseFamily family, SwingStep step,
-                                               SwingGeometry.Frame frame, float lead, double reach) {
-        float inner = effect.innerFraction(SWEEP_INNER_FRACTION);
+    private static @Nullable Ribbon buildSweep(TrailEffect effect, Pass pass, BladePath path, float lead,
+                                               double reach, float innerFraction) {
+        float inner = effect.innerFraction(innerFraction);
         if (inner >= 0.999f) {
             return null;
         }
-        Sweep sweep = new Sweep(family, step, frame, 0.0f, lead, reach, inner);
+        Sweep sweep = new Sweep(path, 0.0f, lead, reach, inner);
         return switch (pass) {
             case WAKE -> buildWake(effect, sweep);
             case BODY -> buildBody(sweep);
@@ -261,8 +263,8 @@ final class TrailRenderer {
      * A thrust: a barbed spearhead down the blade line, as far as the strike has extended. Its width is
      * capped by the profile's hit cone at each distance, so the drawn point fits what can be hit.
      */
-    private static Ribbon buildThrust(TrailEffect effect, Pass pass, PoseFamily family, PlannedSwing swing,
-                                      SwingGeometry.Frame frame, float lead, double reach) {
+    private static Ribbon buildThrust(TrailEffect effect, Pass pass, BladePath path, PlannedSwing swing, float lead,
+                                      double reach) {
         float widthShare = switch (pass) {
             case WAKE -> 1.0f;
             case BODY -> 0.7f;
@@ -313,7 +315,7 @@ final class TrailRenderer {
             }
         }
 
-        Vec3d across = SwingGeometry.planeAxis(family, swing.step(), frame);
+        Vec3d across = path.across(lead);
         double coneTan = Math.tan(Math.toRadians(swing.profile().coneHalfAngleDeg()));
         double laneHalfWidth = swing.profile().range() * 0.25;
         float inner = effect.innerFraction(0.0f);
@@ -323,8 +325,8 @@ final class TrailRenderer {
             for (int c = 0; c <= cols; c++) {
                 float u = MathHelper.lerp(along[r], notch[c], 1.0f);
                 float t = MathHelper.lerp(u, inner, 1.0f);
-                Vec3d centre = SwingGeometry.surfacePoint(family, swing.step(), frame, lead, t, reach);
-                double allowed = Math.min(laneHalfWidth, centre.distanceTo(frame.origin()) * coneTan);
+                Vec3d centre = path.point(lead, t, reach);
+                double allowed = Math.min(laneHalfWidth, centre.distanceTo(path.origin()) * coneTan);
                 double width = allowed * thrustOutline(u) * barb[r] * widthShare;
                 float x = (float) c / cols * 2.0f - 1.0f;
                 points[r][c] = centre.add(across.multiply(width * x));

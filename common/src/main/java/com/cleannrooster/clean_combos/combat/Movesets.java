@@ -31,8 +31,8 @@ import java.util.Set;
  *
  * <p>Detection order: a config override ({@code movesetOverrides}: item id or {@code #tag} to a moveset or
  * {@code vanilla}), then items left to vanilla by default (the vanilla mace), then thrust (tridents, spear tags,
- * spear-like names), then chop (axes, maces, mace-like names), then swing for anything that deals melee damage;
- * everything else punches.
+ * spear-like names), then chop (axes, maces, mace-like names); of what's left, anything that deals melee damage
+ * swings unless its name marks it a fist weapon (claw, gauntlet, knuckle...); everything else punches.
  */
 public final class Movesets {
 
@@ -51,6 +51,12 @@ public final class Movesets {
     private static final Set<Identifier> VANILLA_HANDLED = Set.of(Identifier.ofVanilla("mace"));
     private static final List<TagKey<Item>> CHOP_TAGS = List.of(
         ItemTags.AXES, tag("c", "tools/axe"), tag("c", "tools/axes"), tag("c", "tools/mace"), tag("c", "tools/maces"));
+    /**
+     * Worn-on-the-hand weapons that punch. Only checked for items that deal melee damage, so a "foxglove"
+     * flower or a "crab_claw" ingredient never matches.
+     */
+    private static final String[] FIST_NAME_HINTS = {"claw", "fist", "gauntlet", "bracer", "knuckle", "cestus",
+        "caestus", "katar", "glove", "handwrap", "hand_wrap", "talon", "tekko"};
 
     private record Spec(SwingStep first, SwingStep second, MovesetTiming timing, double reachBonus,
                         float coneHalfAngleDeg, int maxTargets, int approachPenaltyTicks, int chainGraceTicks,
@@ -61,15 +67,16 @@ public final class Movesets {
 
     static {
         SPECS.put(Moveset.SWING, new Spec(
-            step(SwingSide.LEFT, 70, -60, 15), step(SwingSide.RIGHT, 70, -60, 15),
+            step(SwingSide.LEFT, 35, -30, 8), step(SwingSide.RIGHT, 35, -30, 8),
             new MovesetTiming(0.24f, 0.68f, 0.5f, 5.0f),
-            0.0, 22.0f, 2, 4, 8, new TrackingBudget(30.0f, 9.0f, 1.5f)));
+            0.0, 11.0f, 2, 4, 8, new TrackingBudget(30.0f, 9.0f, 1.5f)));
         SPECS.put(Moveset.CHOP, new Spec(
             step(SwingSide.LEFT, 150, -50, 20), step(SwingSide.RIGHT, 140, -50, 20),
             new MovesetTiming(0.23f, 0.69f, 0.5f, 6.0f),
             0.0, 18.0f, 2, 5, 8, new TrackingBudget(26.0f, 8.0f, 1.5f)));
+        // Both thrusts come from the same side: a spear's second hit repeats the first rather than mirroring it.
         SPECS.put(Moveset.THRUST, new Spec(
-            step(SwingSide.LEFT, 8, -4, 0), step(SwingSide.RIGHT, 8, -4, 0),
+            step(SwingSide.LEFT, 8, -4, 0), step(SwingSide.LEFT, 8, -4, 0),
             new MovesetTiming(0.25f, 0.7f, 0.5f, 5.0f),
             0.0, 12.0f, 2, 4, 8, new TrackingBudget(22.0f, 9.0f, 1.5f)));
         SPECS.put(Moveset.AERIAL, new Spec(
@@ -87,13 +94,21 @@ public final class Movesets {
 
     /** The moveset {@code wielder} uses {@code moveset} with, reach included. */
     public static WeaponProfile profile(Moveset moveset, LivingEntity wielder) {
+        return profile(moveset, wielder, moveset);
+    }
+
+    /**
+     * @param reachFrom the moveset whose reach bonus applies: the weapon's own, when the attack's moveset was
+     *                  swapped for the situation (a sword's running thrust keeps sword reach)
+     */
+    public static WeaponProfile profile(Moveset moveset, LivingEntity wielder, Moveset reachFrom) {
         Spec spec = SPECS.get(moveset);
         // The wielder's own reach without the spear modifier, plus whatever this moveset grants: right for a
         // held spear, an off-hand one, or one only hovered in a tooltip, and never counted twice.
         double reach = wielder.getAttributes().hasAttribute(EntityAttributes.PLAYER_ENTITY_INTERACTION_RANGE)
             ? wielder.getAttributeValue(EntityAttributes.PLAYER_ENTITY_INTERACTION_RANGE) - SpearReach.appliedBonus(wielder)
             : DEFAULT_REACH;
-        double range = Math.max(1.0, reach + SpearReach.bonusFor(moveset) + spec.reachBonus());
+        double range = Math.max(1.0, reach + SpearReach.bonusFor(reachFrom) + spec.reachBonus());
         return new WeaponProfile(moveset, spec.first(), spec.second(), spec.timing(), range, range + SNAP_EXTRA_RANGE,
             spec.coneHalfAngleDeg(), spec.maxTargets(), spec.approachPenaltyTicks(), spec.chainGraceTicks(),
             spec.tracking());
@@ -122,7 +137,23 @@ public final class Movesets {
                 || nameHints(item, CHOP_NAME_HINTS)) {
             return Moveset.CHOP;
         }
-        return dealsMeleeDamage(stack) ? Moveset.SWING : Moveset.FIST;
+        if (!dealsMeleeDamage(stack)) {
+            return Moveset.FIST;
+        }
+        return nameHints(item, FIST_NAME_HINTS) ? Moveset.FIST : Moveset.SWING;
+    }
+
+    /**
+     * True when {@code stack} is a weapon for grip purposes: anything with a moveset except a non-weapon
+     * that merely punches. Fist weapons (claws, gauntlets...) count, so two of them, or one beside a sword,
+     * dual wield.
+     */
+    public static boolean isArmed(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        Moveset moveset = detect(stack);
+        return moveset != null && (!moveset.isFist() || dealsMeleeDamage(stack));
     }
 
     /** True when holding the item adds attack damage: weapons and tools, not blocks or food. */

@@ -6,13 +6,20 @@ import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Clamped, breakable turn toward the target during WINDUP (visceral_combat's AttackTracking, applied to
- * the session's facing instead of the camera). Every yaw correction is bounded by a per-tick rate and a
- * total envelope centred on the starting yaw; a target that leaves what those can cover has dodged,
- * and the swing finishes along its last facing.
+ * Where a swing faces, every tick of it. Two things steer it:
  *
- * <p>Pitch follows the target's height at the same rate, within its own envelope, so the arc tilts to meet
- * a tall or short target. Only sideways movement counts as a dodge.
+ * <ul>
+ *   <li><b>The wielder's own turning.</b> However far they have turned their look since the swing started is
+ *       added straight on, for the whole swing: turn mid-swing and the arc, the strike cone and the trail turn
+ *       with you.</li>
+ *   <li><b>Tracking</b> (visceral_combat's AttackTracking): during WINDUP, a clamped, breakable correction
+ *       toward the target on top of that. Every correction is bounded by a per-tick rate and an envelope
+ *       centred on where the wielder is steering; a target that leaves what those can cover has dodged, and
+ *       the correction stays where it was.</li>
+ * </ul>
+ *
+ * <p>Pitch works the same way within its own envelope, so the arc tilts to meet a tall or short target. Only
+ * sideways movement counts as a dodge.
  */
 public final class SwingTracker {
 
@@ -20,35 +27,43 @@ public final class SwingTracker {
     private static final float SMOOTHING_GAIN = 0.35f;
     private static final float RATE_RAMP_TICKS = 2.0f;
     private static final double ESCAPE_DISTANCE_SLACK = 1.5;
-    /** How far pitch may follow the target from where the swing started, in degrees. */
+    /** How far pitch tracking may correct from where the wielder is steering, in degrees. */
     private static final float PITCH_ENVELOPE = 45.0f;
     /** Swings never tilt past this, up or down. */
     public static final float MAX_PITCH = 70.0f;
 
     private final float startYaw;
     private final float startPitch;
+    /** The wielder's look when the swing started; turning is measured from here. */
+    private final float lookYaw;
+    private final float lookPitch;
     private final float envelope;
     private final float escapeAngle;
     private final float ratePerTick;
     private final double breakDistance;
-    private float facing;
-    private float prevFacing;
-    private float pitch;
-    private float prevPitch;
+    /** How far the wielder has turned since the start, as of the last tick. */
+    private float turnYaw;
+    private float turnPitch;
+    /** Tracking's correction on top of the wielder's turning. */
+    private float trackYaw;
+    private float prevTrackYaw;
+    private float trackPitch;
+    private float prevTrackPitch;
     private int ticks;
     private boolean broken;
 
     /**
-     * @param reach how far the target may be before tracking breaks, minus slack: the weapon's range, or
-     *              its acquire range for a swing that snaps in to reach its target
+     * @param startYaw   the swing's facing at the start (toward the target, or along the look for none)
+     * @param lookYaw    the wielder's own look yaw at the start
+     * @param reach      how far the target may be before tracking breaks, minus slack: the weapon's range, or
+     *                   its acquire range for a swing that snaps in to reach its target
      */
-    public SwingTracker(float startYaw, float startPitch, TrackingBudget budget, int windupTicks, double reach) {
+    public SwingTracker(float startYaw, float startPitch, float lookYaw, float lookPitch, TrackingBudget budget,
+                        int windupTicks, double reach) {
         this.startYaw = startYaw;
         this.startPitch = MathHelper.clamp(startPitch, -MAX_PITCH, MAX_PITCH);
-        this.facing = startYaw;
-        this.prevFacing = startYaw;
-        this.pitch = this.startPitch;
-        this.prevPitch = this.startPitch;
+        this.lookYaw = lookYaw;
+        this.lookPitch = lookPitch;
         this.envelope = budget.yawEnvelopeDeg();
         this.escapeAngle = budget.yawEnvelopeDeg() * budget.escapeFactor();
         // Long windups turn slower per tick — a committed heavy swing shouldn't steer like a jab.
@@ -57,60 +72,76 @@ public final class SwingTracker {
         this.breakDistance = reach + ESCAPE_DISTANCE_SLACK;
     }
 
-    public float tick(LivingEntity attacker, @Nullable LivingEntity target) {
-        prevFacing = facing;
-        prevPitch = pitch;
+    /** A windup tick: follow the wielder's turning, then correct toward the target. */
+    public void tick(LivingEntity attacker, @Nullable LivingEntity target) {
+        hold(attacker);
         if (broken || target == null) {
-            return facing;
+            return;
         }
         if (!target.isAlive() || target.isRemoved()) {
             broken = true;
-            return facing;
+            return;
         }
         ticks++;
+        float steeredYaw = startYaw + turnYaw;
         float desired = TargetRules.yawToward(attacker, target);
-        if (Math.abs(MathHelper.wrapDegrees(desired - startYaw)) > escapeAngle
+        if (Math.abs(MathHelper.wrapDegrees(desired - steeredYaw)) > escapeAngle
                 || TargetRules.reachDistance(attacker, target) > breakDistance) {
             broken = true;
-            return facing;
+            return;
         }
         float rate = ratePerTick * Math.min(1.0f, ticks / RATE_RAMP_TICKS);
-        float error = MathHelper.wrapDegrees(desired - facing);
+        float error = MathHelper.wrapDegrees(desired - (steeredYaw + trackYaw));
         float step = MathHelper.clamp(error * SMOOTHING_GAIN, -rate, rate);
-        float offset = MathHelper.clamp(MathHelper.wrapDegrees(facing + step - startYaw), -envelope, envelope);
-        facing = startYaw + offset;
+        trackYaw = MathHelper.clamp(trackYaw + step, -envelope, envelope);
 
-        float pitchError = TargetRules.pitchToward(attacker, target) - pitch;
+        float steeredPitch = startPitch + turnPitch;
+        float pitchError = TargetRules.pitchToward(attacker, target) - (steeredPitch + trackPitch);
         float pitchStep = MathHelper.clamp(pitchError * SMOOTHING_GAIN, -rate, rate);
-        pitch = MathHelper.clamp(MathHelper.clamp(pitch + pitchStep, startPitch - PITCH_ENVELOPE,
-            startPitch + PITCH_ENVELOPE), -MAX_PITCH, MAX_PITCH);
-        return facing;
+        // Never wind the correction past what the pitch limit would let show.
+        trackPitch = MathHelper.clamp(MathHelper.clamp(trackPitch + pitchStep, -PITCH_ENVELOPE, PITCH_ENVELOPE),
+            -MAX_PITCH - steeredPitch, MAX_PITCH - steeredPitch);
     }
 
+    /**
+     * A tick tracking no longer runs (recovery, hitstop): the wielder's turning still applies, the correction
+     * holds, and its interpolation settles instead of replaying.
+     */
+    public void hold(LivingEntity attacker) {
+        prevTrackYaw = trackYaw;
+        prevTrackPitch = trackPitch;
+        turnYaw = MathHelper.wrapDegrees(attacker.getYaw() - lookYaw);
+        turnPitch = attacker.getPitch() - lookPitch;
+    }
+
+    /** Facing as of the last tick — what the strike resolves along, identically on server and client. */
     public float facing() {
-        return facing;
+        return startYaw + turnYaw + trackYaw;
     }
 
-    /** Facing interpolated across the last tick, for rendering. */
-    public float facing(float tickDelta) {
-        return prevFacing + MathHelper.wrapDegrees(facing - prevFacing) * tickDelta;
+    /**
+     * Facing for rendering: the wielder's turning read live at {@code tickDelta}, so the arc stays glued to a
+     * turning camera instead of trailing it by a tick, and tracking's correction interpolated.
+     */
+    public float facing(LivingEntity attacker, float tickDelta) {
+        return startYaw + MathHelper.wrapDegrees(attacker.getYaw(tickDelta) - lookYaw)
+            + MathHelper.lerp(tickDelta, prevTrackYaw, trackYaw);
     }
 
     public float pitch() {
-        return pitch;
+        return clampPitch(startPitch + turnPitch + trackPitch);
     }
 
-    public float pitch(float tickDelta) {
-        return MathHelper.lerp(tickDelta, prevPitch, pitch);
-    }
-
-    /** Called on ticks the tracker no longer runs, so the interpolation settles instead of replaying. */
-    public void hold() {
-        prevFacing = facing;
-        prevPitch = pitch;
+    public float pitch(LivingEntity attacker, float tickDelta) {
+        return clampPitch(startPitch + attacker.getPitch(tickDelta) - lookPitch
+            + MathHelper.lerp(tickDelta, prevTrackPitch, trackPitch));
     }
 
     public boolean isBroken() {
         return broken;
+    }
+
+    private static float clampPitch(float pitch) {
+        return MathHelper.clamp(pitch, -MAX_PITCH, MAX_PITCH);
     }
 }

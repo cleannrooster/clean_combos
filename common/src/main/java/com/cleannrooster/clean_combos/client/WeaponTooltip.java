@@ -19,10 +19,11 @@ public final class WeaponTooltip {
         if (stack.isEmpty()) {
             return;
         }
-        Moveset moveset = Movesets.detect(stack);
-        if (moveset == null || moveset.isFist()) {
+        // Fist weapons (claws, gauntlets...) get their line; plain items that merely punch don't.
+        if (!Movesets.isArmed(stack)) {
             return;
         }
+        Moveset moveset = Movesets.detect(stack);
         lines.add(Text.translatable("clean_combos.tooltip.moveset." + moveset.name().toLowerCase(Locale.ROOT))
             .formatted(Formatting.GOLD));
     }

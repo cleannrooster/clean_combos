@@ -10,6 +10,7 @@ import com.cleannrooster.clean_combos.combat.ComboSlot;
 import com.cleannrooster.clean_combos.combat.ComboTracker;
 import com.cleannrooster.clean_combos.combat.Hitstop;
 import com.cleannrooster.clean_combos.combat.PlannedSwing;
+import com.cleannrooster.clean_combos.combat.CombatSounds;
 import com.cleannrooster.clean_combos.combat.SwingGeometry;
 import com.cleannrooster.clean_combos.combat.StrikeResolver;
 import com.cleannrooster.clean_combos.combat.SwingPlanner;
@@ -27,6 +28,7 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.hit.HitResult;
 import org.jetbrains.annotations.Nullable;
 
@@ -99,18 +101,26 @@ public final class ClientCombat {
     private static @Nullable PlannedSwing beginSwing(ClientPlayerEntity player, @Nullable LivingEntity target,
                                                      ComboSlot slot, float snapDistance, float yaw, float pitch) {
         boolean airborne = SwingPlanner.isAirborne(player);
-        PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, airborne);
+        if (airborne) {
+            // A jump attack stands outside the one-two: always the first swing's hand and side, combo untouched.
+            slot = ComboSlot.FIRST;
+        }
+        // Sprinting and actually moving forward, not just holding the sprint state while standing or backing off.
+        boolean sprinting = player.isSprinting() && player.input.movementForward > 0.0f;
+        PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, airborne, sprinting);
         if (swing == null) {
             return null;
         }
         LungeController.cancel();
-        own = new AttackSession(swing, target, yaw, pitch);
+        own = new AttackSession(swing, target, yaw, pitch, player.getYaw(), player.getPitch());
         TrailEffects.spawn(player, own);
-        COMBO.onSwingStarted(slot, player.getWorld().getTime() + swing.effectiveWindupTicks()
-            + swing.effectiveRecoveryTotalTicks(), swing.profile().chainGraceTicks());
+        if (!airborne) {
+            COMBO.onSwingStarted(slot, player.getWorld().getTime() + swing.effectiveWindupTicks()
+                + swing.effectiveRecoveryTotalTicks(), swing.profile().chainGraceTicks());
+        }
         bufferedClickTime = -1;
-        NetworkManager.sendToServer(new AttackStartC2S(target != null ? target.getId() : -1, yaw, pitch, slot,
-            swing.snapDistance(), airborne));
+        NetworkManager.sendToServer(new AttackStartC2S(target != null ? target.getId() : -1, yaw, pitch,
+            player.getYaw(), player.getPitch(), slot, swing.snapDistance(), airborne, sprinting));
         return swing;
     }
 
@@ -136,6 +146,7 @@ public final class ClientCombat {
             if (own.tick(player)) {
                 predictHitstop(player, own);
             }
+            playWhoosh(player, own);
             if (own.isFinished()) {
                 own = null;
             }
@@ -164,10 +175,28 @@ public final class ClientCombat {
                 continue;
             }
             entry.getValue().tick(attacker);
+            playWhoosh(attacker, entry.getValue());
             if (entry.getValue().isFinished()) {
                 it.remove();
             }
         }
+    }
+
+    /**
+     * The swing's whoosh, on the tick its fast part begins. Every client plays it for every session it runs, the
+     * local player's and other players' mirrored ones alike, so nothing extra crosses the network.
+     */
+    private static void playWhoosh(LivingEntity attacker, AttackSession session) {
+        if (session.wasPausedLastTick()) {
+            return;
+        }
+        int fastPartTick = Math.max(1, MathHelper.ceil(SwingGeometry.strikeStart(session.swing().effectiveWindupTicks())));
+        if (session.elapsed() != fastPartTick) {
+            return;
+        }
+        attacker.getWorld().playSound(attacker.getX(), attacker.getBodyY(0.6), attacker.getZ(),
+            CombatSounds.swingFor(session.swing()), attacker.getSoundCategory(), 0.8f,
+            0.9f + attacker.getRandom().nextFloat() * 0.2f, false);
     }
 
     /**
@@ -210,9 +239,11 @@ public final class ClientCombat {
         LivingEntity target = payload.targetId() >= 0 && world.getEntityById(payload.targetId()) instanceof LivingEntity t
             ? t : null;
         PlannedSwing swing = SwingPlanner.planWithTicks(attacker, payload.slot(), payload.snapDistance(),
-            payload.airborne(), payload.windupTicks(), payload.lockTicks(), payload.recoveryTicks());
+            payload.airborne(), payload.sprinting(), payload.windupTicks(), payload.lockTicks(),
+            payload.recoveryTicks());
         if (swing != null) {
-            AttackSession session = new AttackSession(swing, target, payload.startYaw(), payload.startPitch());
+            AttackSession session = new AttackSession(swing, target, payload.startYaw(), payload.startPitch(),
+                attacker.getYaw(), attacker.getPitch());
             REMOTE.put(attacker.getId(), session);
             TrailEffects.spawn(attacker, session);
         }

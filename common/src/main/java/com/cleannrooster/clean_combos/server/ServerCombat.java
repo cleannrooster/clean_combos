@@ -1,6 +1,7 @@
 package com.cleannrooster.clean_combos.server;
 
 import com.cleannrooster.clean_combos.combat.AttackSession;
+import com.cleannrooster.clean_combos.combat.CombatSounds;
 import com.cleannrooster.clean_combos.combat.ComboSlot;
 import com.cleannrooster.clean_combos.combat.ComboTracker;
 import com.cleannrooster.clean_combos.combat.HandStats;
@@ -23,6 +24,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.MathHelper;
 
@@ -48,6 +50,11 @@ public final class ServerCombat {
     private static final float SNAP_TOLERANCE = 1.0f;
     private static final int CANCEL_TOLERANCE_TICKS = 3;
     private static final double BROADCAST_RANGE = 64.0;
+    /**
+     * Degrees the client's claimed click-time look may differ from the server's copy, which can trail by a
+     * tick of mouse movement. Past this the server's own is used.
+     */
+    private static final float LOOK_TOLERANCE = 30.0f;
 
     private static final Map<UUID, AttackSession> SESSIONS = new HashMap<>();
     private static final Map<UUID, ComboTracker> COMBOS = new HashMap<>();
@@ -65,8 +72,10 @@ public final class ServerCombat {
         }
         long now = player.getWorld().getTime();
         ComboTracker combo = COMBOS.computeIfAbsent(player.getUuid(), id -> new ComboTracker());
-        ComboSlot slot = request.slot() == ComboSlot.SECOND && !combo.canChain(now, CHAIN_TOLERANCE_TICKS)
-            ? ComboSlot.FIRST : request.slot();
+        // A jump attack stands outside the one-two: always the first swing's hand and side, combo untouched.
+        ComboSlot slot = request.airborne() ? ComboSlot.FIRST
+            : request.slot() == ComboSlot.SECOND && !combo.canChain(now, CHAIN_TOLERANCE_TICKS)
+                ? ComboSlot.FIRST : request.slot();
 
         WeaponProfile profile = SwingPlanner.profileFor(player, slot);
         if (profile == null) {
@@ -101,16 +110,25 @@ public final class ServerCombat {
 
         // The client saw the jump at click time; the server's ground state can lag a tick behind it, so the
         // client's word is taken — it only changes the swing's shape, not its reach or damage.
-        PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, request.airborne());
+        // Like the jump, the run is the client's word: it only changes the swing's shape, not its reach or damage.
+        PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, request.airborne(), request.sprinting());
         if (swing == null) {
             return;
         }
 
-        SESSIONS.put(player.getUuid(), new AttackSession(swing, target, startYaw, startPitch));
-        combo.onSwingStarted(slot, now + swing.effectiveWindupTicks() + swing.effectiveRecoveryTotalTicks(),
-            swing.profile().chainGraceTicks());
+        // Mid-swing turning is measured from the click-time look, so client and server turn the swing alike.
+        float lookYaw = Math.abs(MathHelper.wrapDegrees(request.lookYaw() - player.getYaw())) <= LOOK_TOLERANCE
+            ? request.lookYaw() : player.getYaw();
+        float lookPitch = Math.abs(request.lookPitch() - player.getPitch()) <= LOOK_TOLERANCE
+            ? request.lookPitch() : player.getPitch();
+        SESSIONS.put(player.getUuid(), new AttackSession(swing, target, startYaw, startPitch, lookYaw, lookPitch));
+        if (!request.airborne()) {
+            combo.onSwingStarted(slot, now + swing.effectiveWindupTicks() + swing.effectiveRecoveryTotalTicks(),
+                swing.profile().chainGraceTicks());
+        }
         broadcast(player, new AttackStartS2C(player.getId(), target != null ? target.getId() : -1, slot,
-            swing.snapDistance(), startYaw, startPitch, request.airborne(), swing.effectiveWindupTicks(),
+            swing.snapDistance(), startYaw, startPitch, request.airborne(), request.sprinting(),
+            swing.effectiveWindupTicks(),
             swing.effectiveRecoveryLockTicks(),
             swing.effectiveRecoveryTotalTicks()));
     }
@@ -149,6 +167,12 @@ public final class ServerCombat {
             return;
         }
         HandStats.attackWith(player, hand, session.facingYaw(), targets, SwingPlanner.gripDamage(swing.grip()));
+        SoundEvent hit = CombatSounds.hitFor(swing);
+        if (hit != null) {
+            LivingEntity first = targets.get(0);
+            player.getWorld().playSound(null, first.getX(), first.getBodyY(0.5), first.getZ(), hit,
+                player.getSoundCategory(), 1.0f, 0.9f + player.getRandom().nextFloat() * 0.2f);
+        }
 
         int hitstop = Hitstop.ticksFor(swing);
         if (hitstop > 0) {

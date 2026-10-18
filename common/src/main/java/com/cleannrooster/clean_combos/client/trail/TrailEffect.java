@@ -37,6 +37,10 @@ final class TrailEffect {
         this.lifetime = (int) Math.ceil(SwingGeometry.strikeEnd(session.swing().effectiveWindupTicks())) + FADE_OUT_TICKS;
     }
 
+    AttackSession session() {
+        return session;
+    }
+
     PlannedSwing swing() {
         return session.swing();
     }
@@ -63,7 +67,8 @@ final class TrailEffect {
     }
 
     SwingGeometry.Frame frame(float tickDelta) {
-        return SwingGeometry.Frame.of(attacker, session.facingYaw(tickDelta), session.facingPitch(tickDelta), tickDelta);
+        return SwingGeometry.Frame.of(attacker, session.facingYaw(attacker, tickDelta),
+            session.facingPitch(attacker, tickDelta), tickDelta);
     }
 
     /** Blade progress now — the ribbon's leading edge. Zero (nothing drawn) until the fast part starts. */

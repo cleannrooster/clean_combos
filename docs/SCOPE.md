@@ -17,7 +17,7 @@ points.
 | **Chop** | axes, modded maces | `AxeItem`, `MaceItem` subclasses, `#minecraft:axes`, `c:tools/axes`-style tags, id containing `mace` |
 | **Thrust** | spears, tridents | `TridentItem`, spear-style tags, id containing `spear` / `lance` / `pike` / `javelin` |
 | **Swing** | every other melee item | default |
-| **Fists** | empty hand | unchanged: alternating hands |
+| **Fists** | empty hand, non-weapons, fist weapons | melee-damage items with id containing `claw` / `fist` / `gauntlet` / `bracer` / `knuckle` / `cestus` / `katar` / `glove` / `handwrap` / `talon` / `tekko`; alternating hands |
 
 - **The vanilla mace is left to vanilla** (its own attack and smash) by default. Override with
   `"minecraft:mace": "chop"`; any item can be opted out with `"<id>": "vanilla"`.
@@ -32,6 +32,7 @@ points.
 | one weapon, empty off hand | **two-handed** | +25% damage, −20% attack speed |
 | one weapon, non-weapon in off hand (shield, torch…) | **one-handed** | baseline |
 | two weapons | **dual wield** | −20% damage, +25% attack speed; swings alternate hands |
+| fist weapon, empty off hand | **dual wield** | weapon hand and bare fist alternate (fist weapons count as weapons, so two claws or claw + sword dual wield too) |
 
 - All four numbers are config values.
 - No keybind: holding something in the off hand is how you choose one-handed.

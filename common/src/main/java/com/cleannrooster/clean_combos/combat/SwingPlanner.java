@@ -44,10 +44,10 @@ public final class SwingPlanner {
             }
             return new Hands(main.twoHandsWhenFree() ? Grip.TWO_HANDED : Grip.ONE_HANDED, main, null);
         }
-        // An off-hand item left to vanilla counts as a non-weapon: the main weapon is simply one-handed.
-        Moveset off = Movesets.detect(offStack);
-        if (off != null && !main.isFist() && !off.isFist()) {
-            return new Hands(Grip.DUAL_WIELD, main, off);
+        // An off-hand item left to vanilla, or one that merely punches, counts as a non-weapon: the main weapon
+        // is simply one-handed. Fist weapons are weapons here, so claws pair with claws or a sword.
+        if (Movesets.isArmed(entity.getMainHandStack()) && Movesets.isArmed(offStack)) {
+            return new Hands(Grip.DUAL_WIELD, main, Movesets.detect(offStack));
         }
         return new Hands(Grip.ONE_HANDED, main, null);
     }
@@ -82,6 +82,24 @@ public final class SwingPlanner {
         return !(entity instanceof PlayerEntity player && player.getAbilities().flying);
     }
 
+    /** The config's flat attack-speed bonus as a multiplier (25% → 1.25), applied to every attack. */
+    public static float speedBonus() {
+        return 1.0f + CleanCombosConfig.get().attackSpeedBonusPercent / 100.0f;
+    }
+
+    /**
+     * Anti-scaling: attack speed above the config's soft cap counts at its over-cap share (2.0 and 0.5 by
+     * default: 3.0 plays as 2.5). Below the cap, and with the cap at 0, speed is unchanged.
+     */
+    public static double softCapped(double attackSpeed) {
+        CleanCombosConfig config = CleanCombosConfig.get();
+        double cap = config.attackSpeedSoftCap;
+        if (cap <= 0.0 || attackSpeed <= cap) {
+            return attackSpeed;
+        }
+        return cap + (attackSpeed - cap) * config.attackSpeedOverCap;
+    }
+
     /** Attack-speed multiplier the grip gives (config). */
     public static float gripSpeed(Grip grip) {
         CleanCombosConfig config = CleanCombosConfig.get();
@@ -108,25 +126,35 @@ public final class SwingPlanner {
      *                     of the approach penalty, so the cut lands soon after arriving.
      * @param airborne     the attack was started in the air: every moveset but thrust becomes a downward chop
      *                     ({@link Moveset#AERIAL}). The weapon, grip and attack speed are unchanged.
+     * @param sprinting    the attack was started sprinting forward: a swing becomes a thrust, the lunge of a
+     *                     running attack. A jump attack wins over it (a sprint-jump still chops). Reach stays the
+     *                     weapon's own, so a sword's running thrust doesn't borrow the spear's reach bonus.
      */
     public static @Nullable PlannedSwing plan(LivingEntity attacker, ComboSlot slot, float snapDistance,
-                                              boolean airborne) {
+                                              boolean airborne, boolean sprinting) {
         Hands hands = hands(attacker);
         if (hands == null) {
             return null;
         }
         SwingHand hand = handFor(slot, hands.grip());
         Moveset moveset = hand == SwingHand.OFF && hands.off() != null ? hands.off() : hands.main();
+        Moveset weaponMoveset = moveset;
         if (airborne && moveset != Moveset.THRUST) {
             moveset = Moveset.AERIAL;
+        } else if (sprinting && moveset == Moveset.SWING) {
+            moveset = Moveset.THRUST;
         }
-        WeaponProfile profile = Movesets.profile(moveset, attacker);
+        WeaponProfile profile = Movesets.profile(moveset, attacker, weaponMoveset);
         SwingStep step = profile.step(slot);
 
-        double attackSpeed = HandStats.attackSpeed(attacker, hand) * gripSpeed(hands.grip());
-        float cycle = swingCycleTicks(profile.timing(), slot, attackSpeed);
-        float windupShare = slot == ComboSlot.FIRST ? profile.timing().firstWindupShare()
-            : profile.timing().secondWindupShare();
+        double attackSpeed = softCapped(HandStats.attackSpeed(attacker, hand) * gripSpeed(hands.grip()) * speedBonus());
+        // Jump attacks stand outside the one-two: always the average cycle with the shorter windup, whichever
+        // slot they'd have been, so the strike reliably lands while still falling and vanilla's crit applies.
+        float cycle = airborne ? averageCycleTicks(profile.timing(), attackSpeed)
+            : swingCycleTicks(profile.timing(), slot, attackSpeed);
+        float windupShare = airborne
+            ? Math.min(profile.timing().firstWindupShare(), profile.timing().secondWindupShare())
+            : slot == ComboSlot.FIRST ? profile.timing().firstWindupShare() : profile.timing().secondWindupShare();
 
         int lunge = SwingGeometry.lungeTicks(snapDistance);
         float penalty = lunge > 0 ? profile.approachPenaltyTicks() * SwingGeometry.snapPenaltyShare(snapDistance) : 0.0f;
@@ -148,17 +176,21 @@ public final class SwingPlanner {
      * first swing more of the pair and the second less, so a combo's total time doesn't depend on rhythm.
      */
     public static float swingCycleTicks(MovesetTiming timing, ComboSlot slot, double attackSpeed) {
-        CleanCombosConfig config = CleanCombosConfig.get();
-        float average = Math.max(timing.minCycleTicks(),
-            (float) (TICKS_PER_ATTACK_AT_SPEED_ONE / Math.max(0.05, attackSpeed)) * config.attackPace);
-        float beat = timing.beat() * MathHelper.clamp(config.comboRhythm, 0.0f, 1.0f);
-        return average * (slot == ComboSlot.FIRST ? 1.0f + beat : 1.0f - beat);
+        float beat = timing.beat() * MathHelper.clamp(CleanCombosConfig.get().comboRhythm, 0.0f, 1.0f);
+        return averageCycleTicks(timing, attackSpeed) * (slot == ComboSlot.FIRST ? 1.0f + beat : 1.0f - beat);
+    }
+
+    /** The pair's average cycle, without the one-two beat: vanilla's attack time scaled by the config's pace. */
+    public static float averageCycleTicks(MovesetTiming timing, double attackSpeed) {
+        return Math.max(timing.minCycleTicks(),
+            (float) (TICKS_PER_ATTACK_AT_SPEED_ONE / Math.max(0.05, attackSpeed)) * CleanCombosConfig.get().attackPace);
     }
 
     /** A remote player's swing as the server timed it; only the timings come from the packet. */
     public static @Nullable PlannedSwing planWithTicks(LivingEntity attacker, ComboSlot slot, float snapDistance,
-                                                       boolean airborne, int windup, int lock, int total) {
-        PlannedSwing local = plan(attacker, slot, snapDistance, airborne);
+                                                       boolean airborne, boolean sprinting, int windup, int lock,
+                                                       int total) {
+        PlannedSwing local = plan(attacker, slot, snapDistance, airborne, sprinting);
         if (local == null) {
             return null;
         }

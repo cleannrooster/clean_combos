@@ -6,6 +6,7 @@ import com.cleannrooster.clean_combos.client.anim.ProceduralSwingAnimation;
 import com.cleannrooster.clean_combos.client.debug.SwingDebugOverlay;
 import com.cleannrooster.clean_combos.client.targeting.ScreenProjector;
 import com.cleannrooster.clean_combos.client.trail.TrailEffects;
+import com.cleannrooster.clean_combos.config.CleanCombosClientConfig;
 import com.cleannrooster.clean_combos.config.CleanCombosConfig;
 import com.cleannrooster.clean_combos.network.AttackStartS2C;
 import com.cleannrooster.clean_combos.network.ConfigSyncS2C;
@@ -32,6 +33,7 @@ public final class CleanCombosClient {
     }
 
     public static void init() {
+        CleanCombosClientConfig.load();
         NetworkManager.registerReceiver(NetworkManager.Side.S2C, AttackStartS2C.ID, AttackStartS2C.CODEC,
             (payload, context) -> context.queue(() -> ClientCombat.onRemoteStart(payload)));
         NetworkManager.registerReceiver(NetworkManager.Side.S2C, HitstopS2C.ID, HitstopS2C.CODEC,

@@ -1,5 +1,6 @@
 package com.cleannrooster.clean_combos;
 
+import com.cleannrooster.clean_combos.combat.CombatSounds;
 import com.cleannrooster.clean_combos.combat.SpearReach;
 import com.cleannrooster.clean_combos.config.CleanCombosConfig;
 import com.cleannrooster.clean_combos.network.AttackStartC2S;
@@ -27,6 +28,7 @@ public final class CleanCombos {
 
     public static void init() {
         CleanCombosConfig.load();
+        CombatSounds.register();
         NetworkManager.registerReceiver(NetworkManager.Side.C2S, AttackStartC2S.ID, AttackStartC2S.CODEC,
             (payload, context) -> context.queue(() -> {
                 if (context.getPlayer() instanceof ServerPlayerEntity player) {

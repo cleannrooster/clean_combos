@@ -22,8 +22,10 @@ import java.util.List;
  *       negative), so it can't be fed to a lerp.</li>
  * </ul>
  *
- * <p>Values are offsets from the clip's own first frame. Every clip starts at rest, so this is the
- * authored motion independent of whatever default pose PlayerAnimator's loader bakes in.
+ * <p>Values are the authored offsets from rest: PlayerAnimator's loader stores each key as the authored value
+ * plus the bone's rest value ({@code defaultValue}), which is subtracted back out. Measuring from the clip's
+ * first frame instead only works for clips that start at rest — the lunge starts already posed, and that
+ * subtracted its whole pose away.
  */
 final class ClipSampler {
 
@@ -51,7 +53,7 @@ final class ClipSampler {
         if (frames.isEmpty()) {
             return 0.0f;
         }
-        return valueAt(frames, tick) - frames.get(0).value;
+        return valueAt(frames, tick) - state.defaultValue;
     }
 
     private static float valueAt(List<KeyFrame> frames, float tick) {

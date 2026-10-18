@@ -18,16 +18,23 @@ public final class AttackSession {
     private int hitstop;
     private boolean pausedLastTick;
 
-    public AttackSession(PlannedSwing swing, @Nullable LivingEntity target, float startYaw, float startPitch) {
+    /**
+     * @param lookYaw   the attacker's own look yaw when the swing started: turning away from it mid-swing
+     *                  turns the swing with them
+     * @param lookPitch likewise for pitch
+     */
+    public AttackSession(PlannedSwing swing, @Nullable LivingEntity target, float startYaw, float startPitch,
+                         float lookYaw, float lookPitch) {
         this.swing = swing;
         this.target = target;
-        this.tracker = new SwingTracker(startYaw, startPitch, swing.profile().tracking(), swing.effectiveWindupTicks(),
+        this.tracker = new SwingTracker(startYaw, startPitch, lookYaw, lookPitch, swing.profile().tracking(),
+            swing.effectiveWindupTicks(),
             swing.approached() ? swing.profile().acquireRange() : swing.profile().range());
     }
 
     /**
      * Advance one tick. Tracking runs through windup and the strike tick itself, so the last correction
-     * still shapes the cone.
+     * still shapes the cone; the attacker's own turning applies every tick, hitstop included.
      *
      * @return true on the strike tick
      */
@@ -36,7 +43,7 @@ public final class AttackSession {
             // Frozen on impact: the whole remaining timeline (recovery lock included) shifts back.
             hitstop--;
             pausedLastTick = true;
-            tracker.hold();
+            tracker.hold(attacker);
             return false;
         }
         pausedLastTick = false;
@@ -45,7 +52,7 @@ public final class AttackSession {
         if (elapsed <= windup) {
             tracker.tick(attacker, target);
         } else {
-            tracker.hold();
+            tracker.hold(attacker);
         }
         return elapsed == windup;
     }
@@ -119,15 +126,16 @@ public final class AttackSession {
         return tracker.facing();
     }
 
-    public float facingYaw(float tickDelta) {
-        return tracker.facing(tickDelta);
+    /** Facing for rendering, following the attacker's turning live (see {@link SwingTracker#facing(LivingEntity, float)}). */
+    public float facingYaw(LivingEntity attacker, float tickDelta) {
+        return tracker.facing(attacker, tickDelta);
     }
 
     public float facingPitch() {
         return tracker.pitch();
     }
 
-    public float facingPitch(float tickDelta) {
-        return tracker.pitch(tickDelta);
+    public float facingPitch(LivingEntity attacker, float tickDelta) {
+        return tracker.pitch(attacker, tickDelta);
     }
 }

@@ -1,5 +1,9 @@
 {
   "clean_combos.tooltip.moveset.swing": "Swing attack",
   "clean_combos.tooltip.moveset.chop": "Chop attack",
-  "clean_combos.tooltip.moveset.thrust": "Thrust attack"
+  "clean_combos.tooltip.moveset.thrust": "Thrust attack",
+  "clean_combos.tooltip.moveset.fist": "Fist attack",
+  "subtitles.clean_combos.swing": "Weapon swings",
+  "subtitles.clean_combos.punch": "Punch thrown",
+  "subtitles.clean_combos.hit": "Weapon strikes"
 }

@@ -36,6 +36,18 @@ public final class CleanCombosConfig {
      * below 1 is snappier than vanilla's cooldown, above 1 slower.
      */
     public float attackPace = 0.8f;
+    /**
+     * Flat bonus to every attack's speed, in percent, on top of the weapon and grip. The default 25 makes a
+     * two-handed sword (1.6 × 0.8) swing at the sword's own 1.6, so two-handing doesn't feel slow; 0 turns it off.
+     */
+    public float attackSpeedBonusPercent = 25.0f;
+    /**
+     * Anti-scaling: attack speed above this (after the weapon, grip and bonus above) has diminishing returns,
+     * so stacked attack speed can't run away. Normal weapons sit below it and are untouched. 0 turns it off.
+     */
+    public float attackSpeedSoftCap = 2.0f;
+    /** The share of each point of attack speed above the soft cap that still counts (0.5 = half). */
+    public float attackSpeedOverCap = 0.5f;
     /** Ticks a connecting swing freezes for (chops and jump attacks one more); 0 turns hitstop off. */
     public int hitstopTicks = 3;
     /** Extra entity-interaction range, in blocks, while a spear (thrust weapon) is in the main hand. */
@@ -46,6 +58,12 @@ public final class CleanCombosConfig {
     /** A weapon in each hand: damage and attack-speed multipliers. */
     public float dualWieldDamage = 0.8f;
     public float dualWieldSpeed = 1.25f;
+    /**
+     * Testing: play the attack clips whole — arms included, the weapon in vanilla's hold — instead of
+     * procedural arms and weapon under clip bodies. Trails then follow the weapon the clip actually moves
+     * (fists and thrusts keep their straight trail).
+     */
+    public boolean clipOnlyAnimation = true;
     /**
      * Fixes for the rare misdetected weapon: item id or {@code #tag} to {@code swing}, {@code chop},
      * {@code thrust} or {@code fist}. Checked before automatic detection.
@@ -86,6 +104,9 @@ public final class CleanCombosConfig {
         attackMoveSpeed = MathHelper.clamp(attackMoveSpeed, 0.0f, 1.0f);
         comboRhythm = MathHelper.clamp(comboRhythm, 0.0f, 1.0f);
         attackPace = MathHelper.clamp(attackPace, 0.2f, 3.0f);
+        attackSpeedBonusPercent = MathHelper.clamp(attackSpeedBonusPercent, -90.0f, 400.0f);
+        attackSpeedSoftCap = MathHelper.clamp(attackSpeedSoftCap, 0.0f, 20.0f);
+        attackSpeedOverCap = MathHelper.clamp(attackSpeedOverCap, 0.0f, 1.0f);
         hitstopTicks = MathHelper.clamp(hitstopTicks, 0, 10);
         spearReachBonus = MathHelper.clamp(spearReachBonus, 0.0f, 5.0f);
         twoHandedDamage = MathHelper.clamp(twoHandedDamage, 0.1f, 10.0f);

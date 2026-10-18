@@ -43,8 +43,8 @@ public final class SwingDebugOverlay {
         ClientCombat.forEachSession((attacker, session) -> {
             PlannedSwing swing = session.swing();
             float elapsed = session.elapsed(tickDelta);
-            SwingGeometry.Frame frame = SwingGeometry.Frame.of(attacker, session.facingYaw(tickDelta),
-                session.facingPitch(tickDelta), tickDelta);
+            SwingGeometry.Frame frame = SwingGeometry.Frame.of(attacker, session.facingYaw(attacker, tickDelta),
+                session.facingPitch(attacker, tickDelta), tickDelta);
             double range = swing.profile().range();
             boolean striking = Math.abs(elapsed - swing.effectiveWindupTicks()) <= 0.5f;
 
