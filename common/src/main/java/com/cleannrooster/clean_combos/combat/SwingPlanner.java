@@ -139,10 +139,12 @@ public final class SwingPlanner {
         SwingHand hand = handFor(slot, hands.grip());
         Moveset moveset = hand == SwingHand.OFF && hands.off() != null ? hands.off() : hands.main();
         Moveset weaponMoveset = moveset;
+        boolean running = false;
         if (airborne && moveset != Moveset.THRUST) {
             moveset = Moveset.AERIAL;
         } else if (sprinting && moveset == Moveset.SWING) {
             moveset = Moveset.THRUST;
+            running = true;
         }
         WeaponProfile profile = Movesets.profile(moveset, attacker, weaponMoveset);
         SwingStep step = profile.step(slot);
@@ -167,7 +169,7 @@ public final class SwingPlanner {
         // The arm keeps settling a little past the lock; it no longer holds the player back.
         int total = lock + Math.max(2, lock);
         return new PlannedSwing(slot, hands.grip(), hand, HandStats.stackFor(attacker, hand).copy(),
-            profile, step, lunge > 0 ? snapDistance : 0.0f, lunge, windup, lock, total);
+            profile, step, lunge > 0 ? snapDistance : 0.0f, lunge, windup, lock, total, airborne, running);
     }
 
     /**
@@ -195,6 +197,6 @@ public final class SwingPlanner {
             return null;
         }
         return new PlannedSwing(slot, local.grip(), local.hand(), local.weapon(), local.profile(), local.step(),
-            local.snapDistance(), local.lungeTicks(), windup, lock, total);
+            local.snapDistance(), local.lungeTicks(), windup, lock, total, local.airborne(), local.running());
     }
 }

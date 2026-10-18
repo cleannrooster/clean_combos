@@ -1,6 +1,6 @@
 # Clean Combos — scope: "basic, but prestige"
 
-Decided 2026-10-17 after playing 0.1.0 in Guild Adventures. Current as of **1.0.0-beta.1**.
+Decided 2026-10-17 after playing 0.1.0 in Guild Adventures. Current as of **1.0.0-beta.2**.
 
 ## The pitch
 
@@ -95,3 +95,11 @@ points. Few knobs, on purpose.
 
 - Fabric + NeoForge, Minecraft 1.21.1. Requires Architectury API and PlayerAnimator.
 - Incompatible with Better Combat (both replace the attack).
+
+## API
+
+- `com.cleannrooster.clean_combos.api` (stable across 1.x; see `docs/API.md`): weapon types (sword, rapier,
+  claw, mace...), damage kinds (slashing / piercing / bludgeoning), attack state, attack-start / strike / miss
+  events and `currentStrike()`. Item tags `#clean_combos:weapon_type/<type>`, `#clean_combos:moveset/<moveset>`
+  and `#clean_combos:vanilla_attack` classify items ahead of detection. Nothing in the mod is built on the
+  damage kinds or events — they're for add-ons.

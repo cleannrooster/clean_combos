@@ -1,6 +1,7 @@
 package com.cleannrooster.clean_combos.combat;
 
 import com.cleannrooster.clean_combos.CleanCombos;
+import com.cleannrooster.clean_combos.api.CleanCombosTags;
 import com.cleannrooster.clean_combos.config.CleanCombosConfig;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
@@ -64,6 +65,8 @@ public final class Movesets {
     }
 
     private static final Map<Moveset, Spec> SPECS = new EnumMap<>(Moveset.class);
+    /** Movesets an item can be tagged into ({@code #clean_combos:moveset/<name>}); AERIAL is situational. */
+    private static final List<Moveset> TAGGABLE = List.of(Moveset.SWING, Moveset.CHOP, Moveset.THRUST, Moveset.FIST);
 
     static {
         SPECS.put(Moveset.SWING, new Spec(
@@ -125,6 +128,14 @@ public final class Movesets {
         Overrides.Rule override = Overrides.lookup(stack);
         if (override != null) {
             return override.moveset();
+        }
+        if (stack.isIn(CleanCombosTags.VANILLA_ATTACK)) {
+            return null;
+        }
+        for (Moveset tagged : TAGGABLE) {
+            if (stack.isIn(CleanCombosTags.moveset(tagged))) {
+                return tagged;
+            }
         }
         Item item = stack.getItem();
         if (VANILLA_HANDLED.contains(Registries.ITEM.getId(item))) {

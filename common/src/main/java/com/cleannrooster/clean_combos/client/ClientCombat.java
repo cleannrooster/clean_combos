@@ -10,6 +10,8 @@ import com.cleannrooster.clean_combos.combat.ComboSlot;
 import com.cleannrooster.clean_combos.combat.ComboTracker;
 import com.cleannrooster.clean_combos.combat.Hitstop;
 import com.cleannrooster.clean_combos.combat.PlannedSwing;
+import com.cleannrooster.clean_combos.api.AttackInfo;
+import com.cleannrooster.clean_combos.api.CleanCombosApi;
 import com.cleannrooster.clean_combos.combat.CombatSounds;
 import com.cleannrooster.clean_combos.combat.SwingGeometry;
 import com.cleannrooster.clean_combos.combat.StrikeResolver;
@@ -108,7 +110,7 @@ public final class ClientCombat {
         // Sprinting and actually moving forward, not just holding the sprint state while standing or backing off.
         boolean sprinting = player.isSprinting() && player.input.movementForward > 0.0f;
         PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, airborne, sprinting);
-        if (swing == null) {
+        if (swing == null || !CleanCombosApi.fireAttackStart(AttackInfo.of(player, swing))) {
             return null;
         }
         LungeController.cancel();
@@ -255,6 +257,11 @@ public final class ClientCombat {
             return own;
         }
         return REMOTE.get(entity.getId());
+    }
+
+    /** The local player's combo state; other players' isn't known on this client. */
+    public static @Nullable ComboTracker comboFor(Entity entity) {
+        return entity == MinecraftClient.getInstance().player ? COMBO : null;
     }
 
     /** Every live session with its attacker: the local player's and mirrored remote ones. */

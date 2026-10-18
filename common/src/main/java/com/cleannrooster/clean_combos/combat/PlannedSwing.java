@@ -10,6 +10,8 @@ import net.minecraft.item.ItemStack;
  * @param lungeTicks           ticks the snap pushes for, from its distance; 0 for none
  * @param effectiveWindupTicks base windup + the snap's share of the approach penalty, scaled by attack speed,
  *                             and never shorter than the push plus the blade's fast part
+ * @param airborne             started in the air (a jump attack)
+ * @param running              started sprinting forward, turning a swing into a thrust
  */
 public record PlannedSwing(
         ComboSlot slot,
@@ -22,7 +24,9 @@ public record PlannedSwing(
         int lungeTicks,
         int effectiveWindupTicks,
         int effectiveRecoveryLockTicks,
-        int effectiveRecoveryTotalTicks) {
+        int effectiveRecoveryTotalTicks,
+        boolean airborne,
+        boolean running) {
 
     /** True when the swing snaps to its target. */
     public boolean approached() {

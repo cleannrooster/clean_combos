@@ -1,6 +1,7 @@
 package com.cleannrooster.clean_combos.combat;
 
 import com.cleannrooster.clean_combos.CleanCombos;
+import com.cleannrooster.clean_combos.api.CleanCombosApi;
 import com.cleannrooster.clean_combos.mixin.LivingEntityAccessor;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -10,6 +11,7 @@ import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
@@ -71,34 +73,42 @@ public final class HandStats {
      * Hit every target with vanilla's player attack, as the swinging hand, facing {@code facingYaw}.
      * Vanilla supplies crits, enchantments, knockback, durability and stats; the cooldown is filled
      * first so damage isn't scaled by vanilla's attack-speed bar, each target's i-frames are cleared so
-     * rapid swings land in full, and sweeping is suppressed by mixin. The grip's damage multiplier rides
-     * along as a temporary attack-damage modifier, so it stacks with vanilla's own maths.
+     * rapid swings land in full, and sweeping is suppressed by mixin. The grip's damage multiplier, times each
+     * target's strike-listener multiplier, rides along as a temporary attack-damage modifier, so it stacks with
+     * vanilla's own maths. {@link CleanCombosApi#currentStrike} is set around each target's hit.
      */
-    public static void attackWith(PlayerEntity player, SwingHand hand, float facingYaw, List<LivingEntity> targets,
-                                  float damageMultiplier) {
+    public static void attackWith(PlayerEntity player, SwingHand hand, float facingYaw, List<Strike> strikes,
+                                  float gripMultiplier) {
         float savedYaw = player.getYaw();
         player.setYaw(facingYaw);
         Runnable strike = () -> {
             strikeInProgress = true;
             EntityAttributeInstance damage = player.getAttributeInstance(EntityAttributes.GENERIC_ATTACK_DAMAGE);
-            boolean gripApplied = damage != null && Math.abs(damageMultiplier - 1.0f) > 1.0e-4f;
-            if (gripApplied) {
-                damage.addTemporaryModifier(new EntityAttributeModifier(GRIP_DAMAGE_ID, damageMultiplier - 1.0,
-                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
-            }
             try {
-                for (LivingEntity target : targets) {
-                    ((LivingEntityAccessor) player).clean_combos$setLastAttackedTicks(10_000);
-                    // Swings ignore i-frames: with the counter cleared, vanilla's damage takes the full-hit path
-                    // instead of only the excess over the last hit. It re-arms them afterwards as usual, so
-                    // every other damage source still respects them.
-                    target.timeUntilRegen = 0;
-                    player.attack(target);
+                for (Strike hit : strikes) {
+                    LivingEntity target = hit.target();
+                    float multiplier = gripMultiplier * hit.damageMultiplier();
+                    boolean scaled = damage != null && Math.abs(multiplier - 1.0f) > 1.0e-4f;
+                    if (scaled) {
+                        damage.addTemporaryModifier(new EntityAttributeModifier(GRIP_DAMAGE_ID, multiplier - 1.0,
+                            EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                    }
+                    CleanCombosApi.setCurrentStrike(hit.info());
+                    try {
+                        ((LivingEntityAccessor) player).clean_combos$setLastAttackedTicks(10_000);
+                        // Swings ignore i-frames: with the counter cleared, vanilla's damage takes the full-hit
+                        // path instead of only the excess over the last hit. It re-arms them afterwards as usual,
+                        // so every other damage source still respects them.
+                        target.timeUntilRegen = 0;
+                        player.attack(target);
+                    } finally {
+                        CleanCombosApi.setCurrentStrike(null);
+                        if (scaled) {
+                            damage.removeModifier(GRIP_DAMAGE_ID);
+                        }
+                    }
                 }
             } finally {
-                if (gripApplied) {
-                    damage.removeModifier(GRIP_DAMAGE_ID);
-                }
                 strikeInProgress = false;
             }
         };
@@ -111,6 +121,15 @@ public final class HandStats {
         } finally {
             player.setYaw(savedYaw);
         }
+    }
+
+    /**
+     * Whether vanilla will crit this player's next attack: its own conditions, minus the attack-cooldown one,
+     * which Clean Combos always fills.
+     */
+    public static boolean wouldCrit(PlayerEntity player) {
+        return player.fallDistance > 0.0f && !player.isOnGround() && !player.isClimbing() && !player.isTouchingWater()
+            && !player.hasStatusEffect(StatusEffects.BLINDNESS) && !player.hasVehicle() && !player.isSprinting();
     }
 
     private static void runWithHandsSwapped(PlayerEntity player, Runnable action) {

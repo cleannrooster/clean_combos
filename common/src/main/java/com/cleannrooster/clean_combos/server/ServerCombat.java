@@ -1,5 +1,9 @@
 package com.cleannrooster.clean_combos.server;
 
+import com.cleannrooster.clean_combos.api.AttackInfo;
+import com.cleannrooster.clean_combos.api.CleanCombosApi;
+import com.cleannrooster.clean_combos.api.StrikeInfo;
+import com.cleannrooster.clean_combos.api.StrikeModifier;
 import com.cleannrooster.clean_combos.combat.AttackSession;
 import com.cleannrooster.clean_combos.combat.CombatSounds;
 import com.cleannrooster.clean_combos.combat.ComboSlot;
@@ -7,6 +11,7 @@ import com.cleannrooster.clean_combos.combat.ComboTracker;
 import com.cleannrooster.clean_combos.combat.HandStats;
 import com.cleannrooster.clean_combos.combat.Hitstop;
 import com.cleannrooster.clean_combos.combat.PlannedSwing;
+import com.cleannrooster.clean_combos.combat.Strike;
 import com.cleannrooster.clean_combos.combat.StrikeResolver;
 import com.cleannrooster.clean_combos.combat.SwingHand;
 import com.cleannrooster.clean_combos.combat.SwingGeometry;
@@ -27,7 +32,9 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.MathHelper;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -112,7 +119,7 @@ public final class ServerCombat {
         // client's word is taken — it only changes the swing's shape, not its reach or damage.
         // Like the jump, the run is the client's word: it only changes the swing's shape, not its reach or damage.
         PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, request.airborne(), request.sprinting());
-        if (swing == null) {
+        if (swing == null || !CleanCombosApi.fireAttackStart(AttackInfo.of(player, swing))) {
             return;
         }
 
@@ -159,14 +166,25 @@ public final class ServerCombat {
         if (!ItemStack.areItemsEqual(HandStats.stackFor(player, hand), swing.weapon())) {
             return;
         }
-        List<LivingEntity> targets = StrikeResolver.resolve(player, session.target(), swing, session.facingYaw(),
-            session.facingPitch());
-        if (targets.isEmpty()) {
+        AttackInfo attack = AttackInfo.of(player, swing);
+        boolean critical = HandStats.wouldCrit(player);
+        List<Strike> strikes = new ArrayList<>();
+        for (LivingEntity candidate : StrikeResolver.resolve(player, session.target(), swing, session.facingYaw(),
+                session.facingPitch())) {
+            StrikeInfo info = new StrikeInfo(attack, candidate, critical);
+            StrikeModifier modifier = CleanCombosApi.fireStrike(info);
+            if (!modifier.isCancelled()) {
+                strikes.add(new Strike(candidate, info, modifier.damageMultiplier()));
+            }
+        }
+        if (strikes.isEmpty()) {
             player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ENTITY_PLAYER_ATTACK_NODAMAGE, player.getSoundCategory(), 1.0f, 1.0f);
+            CleanCombosApi.fireMiss(attack);
             return;
         }
-        HandStats.attackWith(player, hand, session.facingYaw(), targets, SwingPlanner.gripDamage(swing.grip()));
+        List<LivingEntity> targets = strikes.stream().map(Strike::target).toList();
+        HandStats.attackWith(player, hand, session.facingYaw(), strikes, SwingPlanner.gripDamage(swing.grip()));
         SoundEvent hit = CombatSounds.hitFor(swing);
         if (hit != null) {
             LivingEntity first = targets.get(0);
@@ -193,6 +211,16 @@ public final class ServerCombat {
                 NetworkManager.sendToPlayer(other, payload);
             }
         }
+    }
+
+    /** The swing {@code player} is making now, or null. Read-only, for the public API. */
+    public static @Nullable AttackSession sessionFor(UUID player) {
+        return SESSIONS.get(player);
+    }
+
+    /** The combo state of {@code player}, or null if they haven't attacked. Read-only, for the public API. */
+    public static @Nullable ComboTracker comboFor(UUID player) {
+        return COMBOS.get(player);
     }
 
     public static void forget(UUID player) {
