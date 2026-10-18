@@ -59,9 +59,9 @@ public final class CleanCombosConfig {
     public float dualWieldDamage = 0.8f;
     public float dualWieldSpeed = 1.25f;
     /**
-     * Testing: play the attack clips whole — arms included, the weapon in vanilla's hold — instead of
-     * procedural arms and weapon under clip bodies. Trails then follow the weapon the clip actually moves
-     * (fists and thrusts keep their straight trail).
+     * Play the attack clips whole — arms included, the weapon in vanilla's hold — with trails following the
+     * weapon the clip moves (fists and thrusts keep their straight trail). Off: the older style, with
+     * procedural arms and a turned weapon on the authored swing arc under the clips' body motion.
      */
     public boolean clipOnlyAnimation = true;
     /**

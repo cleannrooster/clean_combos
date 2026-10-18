@@ -80,7 +80,7 @@ public final class ClipBlade {
         this.yawFrame = yawFrame;
     }
 
-    /** True when {@code swing} plays its clip whole: the testing flag is on and the moveset has a clip. */
+    /** True when {@code swing} plays its clip whole: clip-only animation is on and the moveset has a clip. */
     public static boolean drives(PlannedSwing swing) {
         return CleanCombosConfig.get().clipOnlyAnimation && BodyClip.forMoveset(swing.profile().moveset()) != null;
     }

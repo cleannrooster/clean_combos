@@ -40,7 +40,7 @@ import java.util.WeakHashMap;
  *       authored rhythm and eased to rest.</li>
  * </ul>
  * The arm left free by the grip plays the clip's {@code left_arm} keys. With {@code clipOnlyAnimation}
- * (testing) the clip drives both arms too and the weapon keeps vanilla's hold; see {@link ClipBlade}. Clip bones are layered
+ * (the default) the clip drives both arms too and the weapon keeps vanilla's hold; see {@link ClipBlade}. Clip bones are layered
  * additively over vanilla, so the head still follows the mouse. In first person the same posed arms and
  * weapon are drawn from the camera (PlayerAnimator's third-person-model mode), so the view shows the real
  * swing rather than vanilla's hand bob. Inactive without a session, so vanilla shows through.
@@ -66,7 +66,7 @@ public final class ProceduralSwingAnimation implements IAnimation {
 
     // Per-frame state from setupAnim.
     private boolean posing;
-    /** Testing mode ({@code clipOnlyAnimation}): the attack clip drives every bone; nothing procedural. */
+    /** Clip-only animation ({@code clipOnlyAnimation}, the default): the attack clip drives every bone. */
     private boolean clipOnly;
     /** Clip-only, mirrored two-handed: the weapon is turned in the hand to mirror the blade (see ClipBlade). */
     private boolean mirrorItem;
