@@ -6,6 +6,7 @@
   "description": "Drop-in combo melee: every weapon gets a two-hit combo with authored animations, trails, hitstop and sounds. No setup, no datapacks.",
   "authors": ["cleannrooster"],
   "license": "MIT",
+  "icon": "assets/clean_combos/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": ["com.cleannrooster.clean_combos.fabric.CleanCombosFabric"],

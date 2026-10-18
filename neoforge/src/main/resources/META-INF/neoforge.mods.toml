@@ -41,6 +41,7 @@ license = "MIT"
     modId = "clean_combos"
     version = "${version}"
     displayName = "Clean Combos"
+    logoFile = "assets/clean_combos/icon.png"
     authors = "cleannrooster"
     description = "Drop-in combo melee: every weapon gets a two-hit combo with authored animations, trails, hitstop and sounds. No setup, no datapacks."
 
