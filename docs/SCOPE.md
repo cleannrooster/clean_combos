@@ -1,6 +1,6 @@
 # Clean Combos — scope: "basic, but prestige"
 
-Decided 2026-10-17 after playing 0.1.0 in Guild Adventures. Current as of **1.0.0-beta.2**.
+Decided 2026-10-17 after playing 0.1.0 in Guild Adventures. Current as of **1.0.0-beta.3**.
 
 ## The pitch
 
@@ -17,8 +17,10 @@ points. Few knobs, on purpose.
 | **Chop** | axes, modded maces | `AxeItem`, `MaceItem` subclasses, `#minecraft:axes`, `c:tools/axes`-style tags, id containing `mace` |
 | **Thrust** | spears, tridents | `TridentItem`, spear-style tags, id containing `spear` / `lance` / `pike` / `javelin` |
 | **Swing** | every other melee item | default |
-| **Fists** | empty hand, non-weapons, fist weapons | melee-damage items with id containing `claw` / `fist` / `gauntlet` / `bracer` / `knuckle` / `cestus` / `katar` / `glove` / `handwrap` / `talon` / `tekko` |
+| **Fists** | empty hand, fist weapons | melee-damage items with id containing `claw` / `fist` / `gauntlet` / `bracer` / `knuckle` / `cestus` / `katar` / `glove` / `handwrap` / `talon` / `tekko` |
 
+- **Non-weapons are left to vanilla:** an item that adds no melee damage (a torch, a block, food) attacks and
+  mines as vanilla does — no punch combo. Punches need an empty hand or a fist weapon.
 - **The vanilla mace is left to vanilla** (its own attack and smash) by default. Override with
   `"minecraft:mace": "chop"`; any item can be opted out with `"<id>": "vanilla"`.
 - A short config list (`movesetOverrides`: `id or #tag → moveset`) fixes the rare misdetected modded weapon.
@@ -51,13 +53,21 @@ points. Few knobs, on purpose.
   ticks, split across the two hits by the one-two beat (`comboRhythm`). Each moveset has a minimum cycle.
 - **Speed bonus:** every attack is `attackSpeedBonusPercent` (25%) faster, so a two-handed sword
   (1.6 × 0.8) plays at the sword's own 1.6.
+- **Combo pause:** after a combo's second hit, the next combo waits the time the bonus saved over the pair
+  (`comboPause`, on; 4 ticks for a sword), so swings stay snappy but sustained attack speed is the weapon's own,
+  and the one-two reads as a combo ("da-da … da-da"). Stopping after the first hit doesn't pause; jump attacks
+  are outside the combo.
 - **Anti-scaling:** attack speed above `attackSpeedSoftCap` (2.0) counts at `attackSpeedOverCap` (half), so
   stacked attack speed can't run away. Normal weapons sit below it.
 - Control returns at the hit; the animation plays on, and the next attack waits for the cycle.
 
 ### Reach
 
-- The wielder's entity-interaction-range attribute (fists −0.5); snaps reach 7 blocks further.
+- The wielder's entity-interaction-range attribute, plus `attackRangeBonus` (+0.5) on every attack (fists −0.5);
+  snaps reach 7 blocks further and stop at `lungeStopFraction`
+  (60%) of the attack's range, so a target still backing off stays in reach.
+- Every thrust gets `thrustRangeBonus` (+1) on top — spears and running thrusts alike — so sprinting at a
+  fleeing target and thrusting reaches it. Targeting and the snap use the running thrust's reach while sprinting.
 - Holding a spear (any thrust weapon) adds `spearReachBonus` (+1) to the attribute itself.
 
 ### Hits

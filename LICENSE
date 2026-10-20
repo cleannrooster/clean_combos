@@ -23,5 +23,6 @@ SOFTWARE.
 ---
 
 The sound files in common/src/main/resources/assets/clean_combos/sounds/ are not
-covered by this license. They are from Fantasy SFX Pack Vol 1 by JC Sounds,
-licensed under CC BY 4.0; see CREDITS.md.
+covered by this license: the swing whooshes are from Swishes Sound Pack by artisticdude
+(CC0) and the hit sounds from Fantasy SFX Pack Vol 1 by JC Sounds (CC BY 4.0); see
+CREDITS.md.

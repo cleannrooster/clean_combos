@@ -11,8 +11,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The swing whoosh and the hit each attack makes, by weight: light (one-handed and dual-wielded swings), heavy
  * (two-handed swings, chops and jump attacks), quick (spear thrusts) and blunt (fists: a duller, lower whoosh
- * with no blade edge). Fists have no hit of their own; vanilla's punch sound covers it. Vanilla's attack and
- * crit sounds play alongside, untouched.
+ * with no blade edge, and a thud on the hit). Vanilla's own attack sounds are muted during a strike (see
+ * PlayerEntityMixin), so these are the only ones.
  */
 public final class CombatSounds {
 
@@ -26,6 +26,7 @@ public final class CombatSounds {
     public static final RegistrySupplier<SoundEvent> HIT_LIGHT = register("hit.light");
     public static final RegistrySupplier<SoundEvent> HIT_HEAVY = register("hit.heavy");
     public static final RegistrySupplier<SoundEvent> HIT_QUICK = register("hit.quick");
+    public static final RegistrySupplier<SoundEvent> HIT_BLUNT = register("hit.blunt");
 
     private enum Weight {
         LIGHT,
@@ -51,13 +52,13 @@ public final class CombatSounds {
         };
     }
 
-    /** The sound of the blade connecting, or null for fists (vanilla's punch is enough). */
+    /** The sound of the blow connecting: a blade's ring, or a dull thud for a punch. */
     public static @Nullable SoundEvent hitFor(PlannedSwing swing) {
         return switch (weightOf(swing)) {
             case LIGHT -> HIT_LIGHT.get();
             case HEAVY -> HIT_HEAVY.get();
             case QUICK -> HIT_QUICK.get();
-            case BLUNT -> null;
+            case BLUNT -> HIT_BLUNT.get();
         };
     }
 

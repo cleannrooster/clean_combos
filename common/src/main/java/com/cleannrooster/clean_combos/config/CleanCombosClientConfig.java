@@ -26,6 +26,11 @@ public final class CleanCombosClientConfig {
      * attacks always draw them, since the arms are the attack.
      */
     public boolean firstPersonArms = false;
+    /**
+     * For 4 seconds after an attack you hold a combat stance for your grip (third person), blending in as the
+     * attack ends; walking eases you out of it until you stop.
+     */
+    public boolean idleStances = true;
 
     private static CleanCombosClientConfig instance = new CleanCombosClientConfig();
 

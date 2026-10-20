@@ -154,7 +154,7 @@ public final class ProceduralSwingAnimation implements IAnimation {
         if (attackAnimation != null) {
             // The item bone lays the weapon along the mirrored blade instead of the procedural swing line.
             Vector3f[] target = ClipBlade.mirroredBlade(attackAnimation, attack.attackTick(swing, elapsed),
-                itemDisplay.rotation());
+                itemDisplay.blade(), itemDisplay.edge());
             bladeModel = target[0];
             edgeModel = target[1];
         } else {
@@ -367,7 +367,7 @@ public final class ProceduralSwingAnimation implements IAnimation {
             return null;
         }
         Vector3f euler = SwingPoses.itemRotation(bladeModel, edgeModel, appliedLead != null ? appliedLead : leadPose,
-            itemDisplay.rotation());
+            itemDisplay);
         if (euler == null) {
             return null;
         }

@@ -3,6 +3,7 @@ package com.cleannrooster.clean_combos;
 import com.cleannrooster.clean_combos.api.CleanCombosApi;
 import com.cleannrooster.clean_combos.client.ClientCombat;
 import com.cleannrooster.clean_combos.client.WeaponTooltip;
+import com.cleannrooster.clean_combos.client.anim.IdleStanceAnimation;
 import com.cleannrooster.clean_combos.client.anim.ProceduralSwingAnimation;
 import com.cleannrooster.clean_combos.client.debug.SwingDebugOverlay;
 import com.cleannrooster.clean_combos.client.targeting.ScreenProjector;
@@ -57,7 +58,11 @@ public final class CleanCombosClient {
         });
 
         PlayerAnimationAccess.REGISTER_ANIMATION_EVENT.register((player, stack) ->
-            stack.addAnimLayer(ANIMATION_LAYER_PRIORITY, new ProceduralSwingAnimation(player)));
+            {
+                // The ready stance sits under the attack layer, which clears it out as an attack starts.
+                stack.addAnimLayer(ANIMATION_LAYER_PRIORITY - 1, new IdleStanceAnimation(player));
+                stack.addAnimLayer(ANIMATION_LAYER_PRIORITY, new ProceduralSwingAnimation(player));
+            });
 
         ClientCommandRegistrationEvent.EVENT.register((dispatcher, context) -> dispatcher.register(
             ClientCommandRegistrationEvent.literal(CleanCombos.MOD_ID).then(

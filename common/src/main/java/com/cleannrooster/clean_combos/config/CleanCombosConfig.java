@@ -42,6 +42,12 @@ public final class CleanCombosConfig {
      */
     public float attackSpeedBonusPercent = 25.0f;
     /**
+     * After a finished combo (its second hit), pause for the time the speed bonus saved over the pair, so each
+     * swing stays snappy but sustained attack speed is the weapon's own — and the one-two reads as a combo. A
+     * combo abandoned after its first hit doesn't pause. Off: the bonus speeds up attacking overall.
+     */
+    public boolean comboPause = true;
+    /**
      * Anti-scaling: attack speed above this (after the weapon, grip and bonus above) has diminishing returns,
      * so stacked attack speed can't run away. Normal weapons sit below it and are untouched. 0 turns it off.
      */
@@ -52,6 +58,21 @@ public final class CleanCombosConfig {
     public int hitstopTicks = 3;
     /** Extra entity-interaction range, in blocks, while a spear (thrust weapon) is in the main hand. */
     public float spearReachBonus = 1.0f;
+    /**
+     * Extra range, in blocks, on every Clean Combos attack: how far a hit reaches, and so how close a snap has to
+     * bring you. Mining and using items keep vanilla's reach.
+     */
+    public float attackRangeBonus = 0.5f;
+    /**
+     * Extra range, in blocks, on every thrust — spear attacks and running thrusts alike — so sprinting at a
+     * fleeing target and thrusting can still reach it.
+     */
+    public float thrustRangeBonus = 1.0f;
+    /**
+     * Where a snap toward an out-of-range target stops, as a share of the attack's range (0.6 = 60%). Closer
+     * than the edge of reach, so a target still moving away during the windup is still in range when it lands.
+     */
+    public float lungeStopFraction = 0.6f;
     /** Two hands on one weapon (empty off hand): damage and attack-speed multipliers. */
     public float twoHandedDamage = 1.25f;
     public float twoHandedSpeed = 0.8f;
@@ -109,6 +130,9 @@ public final class CleanCombosConfig {
         attackSpeedOverCap = MathHelper.clamp(attackSpeedOverCap, 0.0f, 1.0f);
         hitstopTicks = MathHelper.clamp(hitstopTicks, 0, 10);
         spearReachBonus = MathHelper.clamp(spearReachBonus, 0.0f, 5.0f);
+        attackRangeBonus = MathHelper.clamp(attackRangeBonus, 0.0f, 5.0f);
+        thrustRangeBonus = MathHelper.clamp(thrustRangeBonus, 0.0f, 5.0f);
+        lungeStopFraction = MathHelper.clamp(lungeStopFraction, 0.2f, 1.0f);
         twoHandedDamage = MathHelper.clamp(twoHandedDamage, 0.1f, 10.0f);
         twoHandedSpeed = MathHelper.clamp(twoHandedSpeed, 0.1f, 10.0f);
         dualWieldDamage = MathHelper.clamp(dualWieldDamage, 0.1f, 10.0f);

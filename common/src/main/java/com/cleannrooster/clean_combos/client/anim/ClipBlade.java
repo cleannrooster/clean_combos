@@ -43,8 +43,6 @@ public final class ClipBlade {
     private static final double NECK_PIXELS = 24.0;
     private static final double MODEL_SCALE = 0.9375 / 16.0;
     private static final double STANDARD_HEIGHT = 1.8;
-    private static final Vector3f ITEM_BLADE = new Vector3f(1.0f, 1.0f, 0.0f).normalize();
-    private static final Vector3f ITEM_EDGE = new Vector3f(-1.0f, 1.0f, 0.0f).normalize();
     /** Vanilla's handheld third-person rotation (0, -90, 55), for models whose display can't be read. */
     private static final Matrix3f DEFAULT_RIGHT_DISPLAY = new Matrix3f().rotationXYZ(0.0f,
         -MathHelper.HALF_PI, 55.0f * MathHelper.RADIANS_PER_DEGREE);
@@ -61,21 +59,24 @@ public final class ClipBlade {
     private final boolean mirror;
     private final boolean swapArms;
     private final boolean leadIsRight;
-    private final Matrix3f display;
+    /** The blade and edge as held (the item's display applied), in the item-bone frame. */
+    private final Vector3f heldBlade;
+    private final Vector3f heldEdge;
     private final Vec3d neck;
     private final SwingGeometry.Frame yawFrame;
     private float cachedProgress = Float.NaN;
     private @Nullable Pose cached;
 
     private ClipBlade(PlannedSwing swing, BodyClip clip, KeyframeAnimation animation, boolean leadIsRight,
-                      Matrix3f display, Vec3d neck, SwingGeometry.Frame yawFrame) {
+                      Vector3f heldBlade, Vector3f heldEdge, Vec3d neck, SwingGeometry.Frame yawFrame) {
         this.swing = swing;
         this.clip = clip;
         this.animation = animation;
         this.mirror = BodyClip.mirrored(swing);
         this.swapArms = swapsArms(clip, swing);
         this.leadIsRight = leadIsRight;
-        this.display = display;
+        this.heldBlade = heldBlade;
+        this.heldEdge = heldEdge;
         this.neck = neck;
         this.yawFrame = yawFrame;
     }
@@ -110,12 +111,14 @@ public final class ClipBlade {
      * hold, the item's display) reflected across the body's midplane. Body-local model space, the space the
      * arm and item bones are posed in.
      *
+     * @param heldBlade the item's blade as held ({@link SwingPoses.ItemDisplay#blade()})
+     * @param heldEdge  its edge as held
      * @return {blade, edge}
      */
-    static Vector3f[] mirroredBlade(KeyframeAnimation animation, float tick, Matrix3f display) {
+    static Vector3f[] mirroredBlade(KeyframeAnimation animation, float tick, Vector3f heldBlade, Vector3f heldEdge) {
         Matrix3f armFrame = armFrame(armTrack(animation, "rightArm", tick, false)[0]);
-        Vector3f blade = armFrame.transform(display.transform(new Vector3f(ITEM_BLADE)));
-        Vector3f edge = armFrame.transform(display.transform(new Vector3f(ITEM_EDGE)));
+        Vector3f blade = armFrame.transform(new Vector3f(heldBlade));
+        Vector3f edge = armFrame.transform(new Vector3f(heldEdge));
         blade.x = -blade.x;
         edge.x = -edge.x;
         return new Vector3f[]{blade, edge};
@@ -158,15 +161,18 @@ public final class ClipBlade {
         }
         boolean leadIsRight = leadIsRight(attacker, swing);
         SwingPoses.ItemDisplay itemDisplay = SwingPoses.itemDisplay(swing.weapon(), attacker, !leadIsRight);
-        Matrix3f display = itemDisplay != null ? itemDisplay.rotation()
-            : leadIsRight ? DEFAULT_RIGHT_DISPLAY : DEFAULT_LEFT_DISPLAY;
+        Matrix3f fallback = leadIsRight ? DEFAULT_RIGHT_DISPLAY : DEFAULT_LEFT_DISPLAY;
+        Vector3f heldBlade = itemDisplay != null ? itemDisplay.blade()
+            : fallback.transform(new Vector3f(SwingPoses.ITEM_BLADE));
+        Vector3f heldEdge = itemDisplay != null ? itemDisplay.edge()
+            : fallback.transform(new Vector3f(SwingPoses.ITEM_EDGE));
         double neckHeight = NECK_PIXELS * MODEL_SCALE * attacker.getHeight() / STANDARD_HEIGHT;
         Vec3d neck = attacker.getLerpedPos(tickDelta).add(0.0, neckHeight, 0.0);
         // The body only turns to the swing's yaw, but the hit is aimed with its pitch too, so the clip's weapon
         // path is tilted about the neck by the facing pitch: the trail angles with the aim like the strike does.
         SwingGeometry.Frame yawFrame = SwingGeometry.Frame.of(neck, session.facingYaw(attacker, tickDelta),
             session.facingPitch(attacker, tickDelta));
-        return new ClipBlade(swing, clip, animation, leadIsRight, display, neck, yawFrame);
+        return new ClipBlade(swing, clip, animation, leadIsRight, heldBlade, heldEdge, neck, yawFrame);
     }
 
     /** Where the hand and blade are at blade progress {@code progress} (0..1, 0.5 on the strike tick). */
@@ -189,12 +195,12 @@ public final class ClipBlade {
         Vector3f blade;
         Vector3f edge;
         if (swapArms) {
-            Vector3f[] mirrored = mirroredBlade(animation, tick, display);
+            Vector3f[] mirrored = mirroredBlade(animation, tick, heldBlade, heldEdge);
             blade = mirrored[0];
             edge = mirrored[1];
         } else {
-            blade = armFrame.transform(display.transform(new Vector3f(ITEM_BLADE)));
-            edge = armFrame.transform(display.transform(new Vector3f(ITEM_EDGE)));
+            blade = armFrame.transform(new Vector3f(heldBlade));
+            edge = armFrame.transform(new Vector3f(heldEdge));
         }
 
         Vec3d handWorld = neck.add(toWorld(hand, body).multiply(MODEL_SCALE));

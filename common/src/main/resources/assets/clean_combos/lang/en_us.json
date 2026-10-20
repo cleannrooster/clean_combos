@@ -56,5 +56,6 @@
   "death.clean_combos.tool": "%1$s was struck down by %2$s",
   "death.clean_combos.tool.item": "%1$s was struck down by %2$s using %3$s",
   "death.clean_combos.other": "%1$s was struck down by %2$s",
-  "death.clean_combos.other.item": "%1$s was struck down by %2$s using %3$s"
+  "death.clean_combos.other.item": "%1$s was struck down by %2$s using %3$s",
+  "subtitles.clean_combos.punch_hit": "Punch lands"
 }

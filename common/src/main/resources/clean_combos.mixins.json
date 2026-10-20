@@ -8,6 +8,7 @@
 		"PlayerEntityMixin"
 	],
 	"client": [
+		"client.ClientPlayerEntityMixin",
 		"client.EntityClientMixin",
 		"client.KeyboardInputMixin",
 		"client.LivingEntityClientMixin",

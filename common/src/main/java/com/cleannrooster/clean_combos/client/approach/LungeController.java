@@ -37,7 +37,7 @@ public final class LungeController {
     /** @param lungeTicks the planned push length ({@link com.cleannrooster.clean_combos.combat.PlannedSwing#lungeTicks}) */
     public static void begin(LivingEntity newTarget, double range, int lungeTicks) {
         target = newTarget;
-        optimalReach = Math.max(0.5, range - SwingGeometry.SNAP_MARGIN);
+        optimalReach = SwingGeometry.snapStopDistance(range);
         totalTicks = Math.max(1, lungeTicks);
         ticksDone = 0;
     }

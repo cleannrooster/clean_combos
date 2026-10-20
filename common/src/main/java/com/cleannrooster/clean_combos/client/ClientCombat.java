@@ -57,6 +57,13 @@ public final class ClientCombat {
     private static final Map<Integer, AttackSession> REMOTE = new HashMap<>();
     private static @Nullable AttackSession own;
     private static long bufferedClickTime = -1;
+    /**
+     * Sprinting stays off after an attack until the player starts it again — releases and re-presses forward,
+     * or presses sprint afresh — so holding forward out of a combo walks, and the next attack isn't a running
+     * thrust by accident.
+     */
+    private static boolean sprintHeldOff;
+    private static boolean sprintKeyWasDown;
 
     private ClientCombat() {
     }
@@ -69,7 +76,7 @@ public final class ClientCombat {
         }
         long now = player.getWorld().getTime();
         ComboSlot slot = COMBO.nextSlot(now);
-        WeaponProfile profile = SwingPlanner.profileFor(player, slot);
+        WeaponProfile profile = SwingPlanner.profileFor(player, slot, wouldRunThrust(player));
         if (profile == null) {
             return false;
         }
@@ -100,6 +107,16 @@ public final class ClientCombat {
         return true;
     }
 
+    /** Sprinting and actually moving forward, not just holding the sprint state while standing or backing off. */
+    private static boolean isSprintingForward(ClientPlayerEntity player) {
+        return player.isSprinting() && player.input.movementForward > 0.0f;
+    }
+
+    /** An attack started now would be a running thrust: sprinting forward on the ground (a sprint-jump chops). */
+    private static boolean wouldRunThrust(ClientPlayerEntity player) {
+        return isSprintingForward(player) && !SwingPlanner.isAirborne(player);
+    }
+
     private static @Nullable PlannedSwing beginSwing(ClientPlayerEntity player, @Nullable LivingEntity target,
                                                      ComboSlot slot, float snapDistance, float yaw, float pitch) {
         boolean airborne = SwingPlanner.isAirborne(player);
@@ -107,8 +124,7 @@ public final class ClientCombat {
             // A jump attack stands outside the one-two: always the first swing's hand and side, combo untouched.
             slot = ComboSlot.FIRST;
         }
-        // Sprinting and actually moving forward, not just holding the sprint state while standing or backing off.
-        boolean sprinting = player.isSprinting() && player.input.movementForward > 0.0f;
+        boolean sprinting = isSprintingForward(player);
         PlannedSwing swing = SwingPlanner.plan(player, slot, snapDistance, airborne, sprinting);
         if (swing == null || !CleanCombosApi.fireAttackStart(AttackInfo.of(player, swing))) {
             return null;
@@ -121,6 +137,9 @@ public final class ClientCombat {
                 + swing.effectiveRecoveryTotalTicks(), swing.profile().chainGraceTicks());
         }
         bufferedClickTime = -1;
+        sprintHeldOff = true;
+        // A sprint key already held down isn't a fresh press; only pressing it again restarts sprinting.
+        sprintKeyWasDown = MinecraftClient.getInstance().options.sprintKey.isPressed();
         NetworkManager.sendToServer(new AttackStartC2S(target != null ? target.getId() : -1, yaw, pitch,
             player.getYaw(), player.getPitch(), slot, swing.snapDistance(), airborne, sprinting));
         return swing;
@@ -134,7 +153,7 @@ public final class ClientCombat {
         }
         long now = player.getWorld().getTime();
 
-        WeaponProfile next = SwingPlanner.profileFor(player, COMBO.nextSlot(now));
+        WeaponProfile next = SwingPlanner.profileFor(player, COMBO.nextSlot(now), wouldRunThrust(player));
         if (next == null) {
             TargetAcquirer.clear();
         } else {
@@ -328,6 +347,23 @@ public final class ClientCombat {
                 player.setSprinting(false);
             }
         }
+        if (sprintHeldOff) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            boolean sprintDown = client.options.sprintKey.isPressed();
+            boolean freshPress = sprintDown && !sprintKeyWasDown;
+            sprintKeyWasDown = sprintDown;
+            // Released only once the attack has let go of movement: the snap zeroes forward input itself.
+            if (!isLocked() && !LungeController.isActive() && (freshPress || !input.pressingForward)) {
+                sprintHeldOff = false;
+            } else if (client.player != null && client.player.isSprinting()) {
+                client.player.setSprinting(false);
+            }
+        }
+    }
+
+    /** True while sprinting is held off after an attack (vanilla can't start a sprint). */
+    public static boolean blocksSprint() {
+        return sprintHeldOff;
     }
 
     public static void reset() {
@@ -335,6 +371,7 @@ public final class ClientCombat {
         REMOTE.clear();
         COMBO.reset();
         bufferedClickTime = -1;
+        sprintHeldOff = false;
         LungeController.cancel();
         TargetAcquirer.clear();
         TrailEffects.clear();

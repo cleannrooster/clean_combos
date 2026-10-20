@@ -1,6 +1,7 @@
 package com.cleannrooster.clean_combos.combat;
 
 import com.cleannrooster.clean_combos.combat.Moveset.PoseFamily;
+import com.cleannrooster.clean_combos.config.CleanCombosConfig;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -55,8 +56,6 @@ public final class SwingGeometry {
     public record Sample(Stage stage, float progress, float weight) {
     }
 
-    /** Snaps stop this far inside the weapon's range. */
-    public static final double SNAP_MARGIN = 0.35;
     private static final int MAX_LUNGE_TICKS = 9;
     /** Average snap speed in blocks per tick (the ease-out starts at about twice this). */
     private static final float SNAP_AVERAGE_SPEED = 0.9f;
@@ -80,11 +79,16 @@ public final class SwingGeometry {
     }
 
     /**
-     * How far a snap has to carry the attacker: from their reach to the weapon's range, less a margin so a
-     * target's next step doesn't put it straight back out of range. 0 when already close enough.
+     * Where a snap stops: the config's {@code lungeStopFraction} of the weapon's range (60% by default), well
+     * inside it, so a target still moving away during the windup stays in reach when the hit lands.
      */
+    public static double snapStopDistance(double weaponRange) {
+        return Math.max(0.5, weaponRange * CleanCombosConfig.get().lungeStopFraction);
+    }
+
+    /** How far a snap has to carry the attacker: from their reach to {@link #snapStopDistance}. 0 when already close enough. */
     public static float snapDistance(double reachDistance, double weaponRange) {
-        return (float) Math.max(0.0, reachDistance - Math.max(0.5, weaponRange - SNAP_MARGIN));
+        return (float) Math.max(0.0, reachDistance - snapStopDistance(weaponRange));
     }
 
     /**

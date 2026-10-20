@@ -4,18 +4,28 @@ import com.cleannrooster.clean_combos.combat.SwingGeometry;
 import com.cleannrooster.clean_combos.combat.SwingStep;
 import com.cleannrooster.clean_combos.combat.Moveset.PoseFamily;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.model.BakedModel;
+import net.minecraft.client.render.model.BakedQuad;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Turns a {@link SwingGeometry} sample into model rotations. The held weapon is turned onto the blade
@@ -43,8 +53,8 @@ public final class SwingPoses {
      * A handheld item sprite in model space: handle at the bottom-left, tip at the top-right, and the
      * cutting side (where an axe's head sits) toward the upper-left.
      */
-    private static final Vector3f ITEM_BLADE = new Vector3f(1.0f, 1.0f, 0.0f).normalize();
-    private static final Vector3f ITEM_EDGE = new Vector3f(-1.0f, 1.0f, 0.0f).normalize();
+    static final Vector3f ITEM_BLADE = new Vector3f(1.0f, 1.0f, 0.0f).normalize();
+    static final Vector3f ITEM_EDGE = new Vector3f(-1.0f, 1.0f, 0.0f).normalize();
 
     /**
      * How far the arm leads the blade along the direction of travel. A straight arm-and-blade line looks
@@ -58,10 +68,12 @@ public final class SwingPoses {
      * A held item's third-person display, as far as posing needs it.
      *
      * @param rotation the display transform's rotation
+     * @param blade    which way the blade points (handle to tip) as held, in the item-bone frame
+     * @param edge     which way its cutting side faces as held
      * @param grip     where the hand closes on the item, in the item-bone frame under the model's own display —
      *                 the point the item bone must rotate about so the hand stays on the hilt
      */
-    public record ItemDisplay(Matrix3f rotation, Vector3f grip) {
+    public record ItemDisplay(Matrix3f rotation, Vector3f blade, Vector3f edge, Vector3f grip) {
     }
 
     private SwingPoses() {
@@ -111,12 +123,12 @@ public final class SwingPoses {
      *
      * @return euler angles (x, y, z) for the item bone, or null when blade and edge are degenerate
      */
-    public static @Nullable Vector3f itemRotation(Vector3f blade, Vector3f edge, Pose arm, Matrix3f display) {
+    public static @Nullable Vector3f itemRotation(Vector3f blade, Vector3f edge, Pose arm, ItemDisplay display) {
         Matrix3f armFrame = new Matrix3f().rotationZYX(arm.roll(), arm.yaw(), arm.pitch())
             .rotateX(-MathHelper.HALF_PI).rotateY(MathHelper.PI);
         Matrix3f target = frame(armFrame.transformTranspose(new Vector3f(blade)),
             armFrame.transformTranspose(new Vector3f(edge)));
-        Matrix3f source = frame(display.transform(new Vector3f(ITEM_BLADE)), display.transform(new Vector3f(ITEM_EDGE)));
+        Matrix3f source = frame(new Vector3f(display.blade()), new Vector3f(display.edge()));
         if (target == null || source == null) {
             return null;
         }
@@ -141,6 +153,67 @@ public final class SwingPoses {
             ? ModelTransformationMode.THIRD_PERSON_LEFT_HAND
             : ModelTransformationMode.THIRD_PERSON_RIGHT_HAND).apply(leftArm, scratch);
         Matrix4f transform = scratch.peek().getPositionMatrix();
+        Matrix3f rotation = rotationOf(transform);
+        if (rotation == null) {
+            return null;
+        }
+        // Where the blade lies in the model: vanilla's icon layout (handle bottom-left, tip top-right, cutting side
+        // up-left) carried back through the model's own GUI rotation, the one that makes it look like a normal
+        // icon in the inventory. Identity for vanilla items; for a model built lying flat or upright it turns the
+        // layout to match, so a weapon modelled in any orientation is posed by its real blade.
+        MatrixStack gui = new MatrixStack();
+        model.getTransformation().getTransformation(ModelTransformationMode.GUI).apply(false, gui);
+        Matrix3f guiRotation = rotationOf(gui.peek().getPositionMatrix());
+        Matrix3f iconToModel = guiRotation != null ? guiRotation.transpose() : new Matrix3f();
+        Vector3f heldBlade = rotation.transform(iconToModel.transform(new Vector3f(ITEM_BLADE))).normalize();
+        Vector3f heldEdge = rotation.transform(iconToModel.transform(new Vector3f(ITEM_EDGE))).normalize();
+        // The hand sits at the bone origin, and the model's display puts its handle there — wherever the
+        // item's author chose, at any size or offset. So the grip is the point on the displayed blade line
+        // (through the model's centre, which ItemRenderer shifts onto the display origin) closest to the hand.
+        // A fixed sprite pixel only fits vanilla-sized handheld sprites; modded models with their own scale or
+        // offset then pivoted off the handle and slid along it. The line runs through the model's actual geometry,
+        // not its box's centre: a model built against one side of its box (a flat sword lying at the bottom)
+        // would otherwise pivot about empty space and slide out of the hand whenever the weapon turns.
+        Vector3f centre = transform.transformPosition(geometryOffset(model));
+        Vector3f grip = new Vector3f(heldBlade).mul(-centre.dot(heldBlade)).add(centre);
+        return new ItemDisplay(rotation, heldBlade, heldEdge, grip);
+    }
+
+    private static final Map<BakedModel, Vector3f> GEOMETRY_OFFSETS = new WeakHashMap<>();
+    private static final int VERTEX_INTS = VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL.getVertexSizeByte() / 4;
+
+    /**
+     * Where the middle of a model's actual geometry sits relative to its box's centre, in blocks — zero for vanilla
+     * items, whose sprite is centred. Read once per model from its quads' vertex bounds.
+     */
+    private static Vector3f geometryOffset(BakedModel model) {
+        Vector3f cached = GEOMETRY_OFFSETS.get(model);
+        if (cached != null) {
+            return new Vector3f(cached);
+        }
+        Vector3f min = new Vector3f(Float.POSITIVE_INFINITY);
+        Vector3f max = new Vector3f(Float.NEGATIVE_INFINITY);
+        Random random = Random.create(42L);
+        List<Direction> faces = new ArrayList<>(Arrays.asList(Direction.values()));
+        faces.add(null);
+        for (Direction face : faces) {
+            for (BakedQuad quad : model.getQuads(null, face, random)) {
+                int[] data = quad.getVertexData();
+                for (int v = 0; v + 2 < data.length; v += VERTEX_INTS) {
+                    Vector3f point = new Vector3f(Float.intBitsToFloat(data[v]), Float.intBitsToFloat(data[v + 1]),
+                        Float.intBitsToFloat(data[v + 2]));
+                    min.min(point);
+                    max.max(point);
+                }
+            }
+        }
+        Vector3f offset = min.x <= max.x ? new Vector3f(min).add(max).mul(0.5f).sub(0.5f, 0.5f, 0.5f) : new Vector3f();
+        GEOMETRY_OFFSETS.put(model, offset);
+        return new Vector3f(offset);
+    }
+
+    /** The rotation part of a display transform (its scale divided out), or null if it collapses an axis. */
+    private static @Nullable Matrix3f rotationOf(Matrix4f transform) {
         Matrix3f rotation = new Matrix3f();
         transform.get3x3(rotation);
         Vector3f column = new Vector3f();
@@ -151,15 +224,7 @@ public final class SwingPoses {
             }
             rotation.setColumn(i, column.normalize());
         }
-        // The hand sits at the bone origin, and the model's display puts its handle there — wherever the
-        // item's author chose, at any size or offset. So the grip is the point on the displayed blade line
-        // (through the model's centre, which ItemRenderer shifts onto the display origin) closest to the hand.
-        // A fixed sprite pixel only fits vanilla-sized handheld sprites; modded models with their own scale or
-        // offset then pivoted off the handle and slid along it.
-        Vector3f centre = transform.transformPosition(new Vector3f());
-        Vector3f blade = rotation.transform(new Vector3f(ITEM_BLADE));
-        Vector3f grip = new Vector3f(blade).mul(-centre.dot(blade)).add(centre);
-        return new ItemDisplay(rotation, grip);
+        return rotation;
     }
 
     /**

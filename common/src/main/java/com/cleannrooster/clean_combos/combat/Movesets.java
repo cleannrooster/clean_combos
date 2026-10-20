@@ -33,7 +33,8 @@ import java.util.Set;
  * <p>Detection order: a config override ({@code movesetOverrides}: item id or {@code #tag} to a moveset or
  * {@code vanilla}), then items left to vanilla by default (the vanilla mace), then thrust (tridents, spear tags,
  * spear-like names), then chop (axes, maces, mace-like names); of what's left, anything that deals melee damage
- * swings unless its name marks it a fist weapon (claw, gauntlet, knuckle...); everything else punches.
+ * swings unless its name marks it a fist weapon (claw, gauntlet, knuckle...). An empty hand punches; a
+ * non-weapon (a torch, a block, food) is left to vanilla's own attack, so it mines and hits as vanilla does.
  */
 public final class Movesets {
 
@@ -111,15 +112,17 @@ public final class Movesets {
         double reach = wielder.getAttributes().hasAttribute(EntityAttributes.PLAYER_ENTITY_INTERACTION_RANGE)
             ? wielder.getAttributeValue(EntityAttributes.PLAYER_ENTITY_INTERACTION_RANGE) - SpearReach.appliedBonus(wielder)
             : DEFAULT_REACH;
-        double range = Math.max(1.0, reach + SpearReach.bonusFor(reachFrom) + spec.reachBonus());
+        CleanCombosConfig config = CleanCombosConfig.get();
+        double range = Math.max(1.0, reach + SpearReach.bonusFor(reachFrom) + spec.reachBonus()
+            + config.attackRangeBonus + (moveset == Moveset.THRUST ? config.thrustRangeBonus : 0.0));
         return new WeaponProfile(moveset, spec.first(), spec.second(), spec.timing(), range, range + SNAP_EXTRA_RANGE,
             spec.coneHalfAngleDeg(), spec.maxTargets(), spec.approachPenaltyTicks(), spec.chainGraceTicks(),
             spec.tracking());
     }
 
     /**
-     * Which attack {@code stack} gets, or null to leave it to vanilla entirely. An empty hand, or anything
-     * that isn't a weapon, punches.
+     * Which attack {@code stack} gets, or null to leave it to vanilla entirely. An empty hand punches; an item
+     * that isn't a weapon (adds no melee damage, not tagged or overridden) is left to vanilla.
      */
     public static @Nullable Moveset detect(ItemStack stack) {
         if (stack.isEmpty()) {
@@ -149,7 +152,8 @@ public final class Movesets {
             return Moveset.CHOP;
         }
         if (!dealsMeleeDamage(stack)) {
-            return Moveset.FIST;
+            // Not a weapon: no punching with a torch or a block — vanilla's attack (and mining) as usual.
+            return null;
         }
         return nameHints(item, FIST_NAME_HINTS) ? Moveset.FIST : Moveset.SWING;
     }

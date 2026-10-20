@@ -62,12 +62,22 @@ public final class SwingPlanner {
 
     /** The profile of the moveset that swings in {@code slot}; drives acquisition and approach range. */
     public static @Nullable WeaponProfile profileFor(LivingEntity entity, ComboSlot slot) {
+        return profileFor(entity, slot, false);
+    }
+
+    /**
+     * @param sprinting the attack would start sprinting forward: a swing becomes a running thrust, with thrust
+     *                  reach — so targeting and the snap already see the longer reach while chasing
+     */
+    public static @Nullable WeaponProfile profileFor(LivingEntity entity, ComboSlot slot, boolean sprinting) {
         Hands hands = hands(entity);
         if (hands == null) {
             return null;
         }
         boolean off = handFor(slot, hands.grip()) == SwingHand.OFF;
-        return Movesets.profile(off && hands.off() != null ? hands.off() : hands.main(), entity);
+        Moveset weaponMoveset = off && hands.off() != null ? hands.off() : hands.main();
+        Moveset moveset = sprinting && weaponMoveset == Moveset.SWING ? Moveset.THRUST : weaponMoveset;
+        return Movesets.profile(moveset, entity, weaponMoveset);
     }
 
     /**
@@ -149,7 +159,8 @@ public final class SwingPlanner {
         WeaponProfile profile = Movesets.profile(moveset, attacker, weaponMoveset);
         SwingStep step = profile.step(slot);
 
-        double attackSpeed = softCapped(HandStats.attackSpeed(attacker, hand) * gripSpeed(hands.grip()) * speedBonus());
+        double baseSpeed = HandStats.attackSpeed(attacker, hand) * gripSpeed(hands.grip());
+        double attackSpeed = softCapped(baseSpeed * speedBonus());
         // Jump attacks stand outside the one-two: always the average cycle with the shorter windup, whichever
         // slot they'd have been, so the strike reliably lands while still falling and vanilla's crit applies.
         float cycle = airborne ? averageCycleTicks(profile.timing(), attackSpeed)
@@ -165,9 +176,15 @@ public final class SwingPlanner {
             // The push must end before the blade's fast part (at most 2.5 ticks before the strike) begins.
             windup = Math.max(windup, lunge + 3);
         }
-        int lock = Math.max(1, Math.round(cycle * (1.0f - windupShare)));
+        int swingLock = Math.max(1, Math.round(cycle * (1.0f - windupShare)));
         // The arm keeps settling a little past the lock; it no longer holds the player back.
-        int total = lock + Math.max(2, lock);
+        int total = swingLock + Math.max(2, swingLock);
+        int lock = swingLock;
+        if (slot == ComboSlot.SECOND && !airborne) {
+            lock += comboPauseTicks(profile.timing(), baseSpeed);
+            // The session lives at least as long as its cooldown; the animation's own length is unchanged.
+            total = Math.max(total, lock);
+        }
         return new PlannedSwing(slot, hands.grip(), hand, HandStats.stackFor(attacker, hand).copy(),
             profile, step, lunge > 0 ? snapDistance : 0.0f, lunge, windup, lock, total, airborne, running);
     }
@@ -180,6 +197,24 @@ public final class SwingPlanner {
     public static float swingCycleTicks(MovesetTiming timing, ComboSlot slot, double attackSpeed) {
         float beat = timing.beat() * MathHelper.clamp(CleanCombosConfig.get().comboRhythm, 0.0f, 1.0f);
         return averageCycleTicks(timing, attackSpeed) * (slot == ComboSlot.FIRST ? 1.0f + beat : 1.0f - beat);
+    }
+
+    /**
+     * The pause after a finished combo (its second hit), in ticks: what the speed bonus saved over the pair — two
+     * average swings at the weapon's own speed, less two at the bonused speed. The bonus keeps each swing snappy;
+     * the pause gives the time back between combos, so sustained attack speed stays the weapon's own and the
+     * one-two reads as a combo. 0 with {@code comboPause} off or no bonus.
+     *
+     * @param baseSpeed the swinging hand's attack speed with the grip, before the bonus and the soft cap
+     */
+    public static int comboPauseTicks(MovesetTiming timing, double baseSpeed) {
+        CleanCombosConfig config = CleanCombosConfig.get();
+        if (!config.comboPause || speedBonus() <= 1.0f) {
+            return 0;
+        }
+        float plain = averageCycleTicks(timing, softCapped(baseSpeed));
+        float bonused = averageCycleTicks(timing, softCapped(baseSpeed * speedBonus()));
+        return Math.max(0, Math.round(2.0f * (plain - bonused)));
     }
 
     /** The pair's average cycle, without the one-two beat: vanilla's attack time scaled by the config's pace. */

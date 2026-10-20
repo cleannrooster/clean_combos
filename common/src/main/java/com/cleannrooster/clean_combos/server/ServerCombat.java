@@ -30,7 +30,6 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 
@@ -84,7 +83,7 @@ public final class ServerCombat {
             : request.slot() == ComboSlot.SECOND && !combo.canChain(now, CHAIN_TOLERANCE_TICKS)
                 ? ComboSlot.FIRST : request.slot();
 
-        WeaponProfile profile = SwingPlanner.profileFor(player, slot);
+        WeaponProfile profile = SwingPlanner.profileFor(player, slot, request.sprinting() && !request.airborne());
         if (profile == null) {
             return;
         }
@@ -178,8 +177,7 @@ public final class ServerCombat {
             }
         }
         if (strikes.isEmpty()) {
-            player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.ENTITY_PLAYER_ATTACK_NODAMAGE, player.getSoundCategory(), 1.0f, 1.0f);
+            // A whiff is just the swing's own whoosh: no vanilla no-damage sound.
             CleanCombosApi.fireMiss(attack);
             return;
         }

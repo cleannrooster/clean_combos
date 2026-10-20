@@ -1,30 +1,71 @@
 {
   "swing.light": {
     "subtitle": "subtitles.clean_combos.swing",
-    "sounds": ["clean_combos:sword_swing_1", "clean_combos:sword_swing_2", "clean_combos:sword_swing_3"]
+    "sounds": [
+      "clean_combos:swish_light_1",
+      "clean_combos:swish_light_2",
+      "clean_combos:swish_light_3",
+      "clean_combos:swish_light_4"
+    ]
   },
   "swing.heavy": {
     "subtitle": "subtitles.clean_combos.swing",
-    "sounds": ["clean_combos:heavy_swing_1", "clean_combos:heavy_swing_2", "clean_combos:heavy_swing_3"]
+    "sounds": [
+      "clean_combos:swish_heavy_1",
+      "clean_combos:swish_heavy_2",
+      "clean_combos:swish_heavy_3",
+      "clean_combos:swish_heavy_4",
+      "clean_combos:swish_heavy_5"
+    ]
   },
   "swing.quick": {
     "subtitle": "subtitles.clean_combos.swing",
-    "sounds": ["clean_combos:dagger_swing_1", "clean_combos:dagger_swing_2", "clean_combos:dagger_swing_3"]
+    "sounds": [
+      "clean_combos:swish_quick_1",
+      "clean_combos:swish_quick_2",
+      "clean_combos:swish_quick_3",
+      "clean_combos:swish_quick_4"
+    ]
   },
   "swing.blunt": {
     "subtitle": "subtitles.clean_combos.punch",
-    "sounds": ["clean_combos:fist_swing_1", "clean_combos:fist_swing_2", "clean_combos:fist_swing_3"]
+    "sounds": [
+      "clean_combos:swish_blunt_1",
+      "clean_combos:swish_blunt_2",
+      "clean_combos:swish_blunt_3",
+      "clean_combos:swish_blunt_4"
+    ]
   },
   "hit.light": {
     "subtitle": "subtitles.clean_combos.hit",
-    "sounds": ["clean_combos:sword_hit_1", "clean_combos:sword_hit_2", "clean_combos:sword_hit_3"]
+    "sounds": [
+      "clean_combos:sword_hit_1",
+      "clean_combos:sword_hit_2",
+      "clean_combos:sword_hit_3"
+    ]
   },
   "hit.heavy": {
     "subtitle": "subtitles.clean_combos.hit",
-    "sounds": ["clean_combos:heavy_hit_1", "clean_combos:heavy_hit_2", "clean_combos:heavy_hit_3"]
+    "sounds": [
+      "clean_combos:heavy_hit_1",
+      "clean_combos:heavy_hit_2",
+      "clean_combos:heavy_hit_3"
+    ]
   },
   "hit.quick": {
     "subtitle": "subtitles.clean_combos.hit",
-    "sounds": ["clean_combos:dagger_hit_1", "clean_combos:dagger_hit_2", "clean_combos:dagger_hit_3"]
+    "sounds": [
+      "clean_combos:dagger_hit_1",
+      "clean_combos:dagger_hit_2",
+      "clean_combos:dagger_hit_3"
+    ]
+  },
+  "hit.blunt": {
+    "subtitle": "subtitles.clean_combos.punch_hit",
+    "sounds": [
+      "clean_combos:punch_hit_1",
+      "clean_combos:punch_hit_2",
+      "clean_combos:punch_hit_3"
+    ]
   }
 }
